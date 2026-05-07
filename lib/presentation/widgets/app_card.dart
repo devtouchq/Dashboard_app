@@ -71,7 +71,7 @@ class CardTitleRow extends StatelessWidget {
                 color: pillBgColor,
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: KStyles().med(
+              child: KStyles().semiBold(
                 text: pillText!,
                 color: pillTextColor,
               ),

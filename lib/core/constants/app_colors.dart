@@ -4,6 +4,9 @@ class AppColors {
   // Brand colors (from the dashboard design)
   static const Color primaryColor = Color(0xFF1D9E75); // Teal/Green
   static const Color secondaryColor = Color(0xFF0F6E56); // Dark teal
+  //sectionHeaderBg
+  static const Color sectionHeaderBg =
+      Color.fromARGB(255, 203, 208, 207); // Light teal
 
   // Section colors
   static const Color emrColor = Color(0xFFE2585A); // Coral - EMR

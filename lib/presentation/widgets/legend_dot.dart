@@ -27,9 +27,9 @@ class LegendDot extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const Gap(4),
-        KStyles().reg(
+        KStyles().med(
           text: label,
-          size: 9,
+          size: 11,
           color: textColor ?? AppColors.textSecondary,
         ),
       ],

@@ -27,7 +27,7 @@ class DonutChart extends StatelessWidget {
     required this.slices,
     required this.centerText,
     required this.centerSubText,
-    this.size = 92,
+    this.size = 100,
   });
 
   @override
@@ -45,7 +45,7 @@ class DonutChart extends StatelessWidget {
     final renderSlices = slices.length == 1
         ? [
             slices.first,
-            DonutSlice(
+            const DonutSlice(
               label: '_pad',
               value: 0.0001,
               color: AppColors.transparent,
@@ -53,9 +53,8 @@ class DonutChart extends StatelessWidget {
           ]
         : slices;
 
-    final data = renderSlices
-        .map((s) => {'label': s.label, 'value': s.value})
-        .toList();
+    final data =
+        renderSlices.map((s) => {'label': s.label, 'value': s.value}).toList();
     final colors = renderSlices.map((s) => s.color).toList();
 
     return SizedBox(

@@ -36,18 +36,18 @@ class MetricCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 26,
-            height: 26,
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 14, color: AppColors.white),
+            child: Icon(icon, size: 18, color: AppColors.white),
           ),
           const Gap(6),
           KStyles().med(
             text: label,
-            size: 15,
+            //size: 15,
             color: AppColors.white.withOpacity(0.9),
           ),
           const Gap(2),

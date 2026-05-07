@@ -51,16 +51,16 @@ class DashboardAppBar extends StatelessWidget {
                 //display tile in center if no greeting,
                 if (greeting == null)
                   Center(
-                    child: KStyles().semiBold(
+                    child: KStyles().bold(
                       text: title,
-                      size: 17,
+                      size: 22,
                       color: titleColor ?? AppColors.textPrimary,
                     ),
                   )
                 else
-                  KStyles().semiBold(
+                  KStyles().bold(
                     text: title,
-                    size: 17,
+                    size: 22,
                     color: titleColor ?? AppColors.textPrimary,
                   ),
               ],

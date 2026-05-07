@@ -42,7 +42,7 @@ class CategoryDistributionBar extends StatelessWidget {
                 alignment: Alignment.center,
                 child: KStyles().semiBold(
                   text: '${c.percent.toStringAsFixed(0)}%',
-                  size: 11,
+                  size: 14,
                   color: AppColors.white,
                 ),
               ),

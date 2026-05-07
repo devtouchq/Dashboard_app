@@ -81,50 +81,86 @@ class HomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
                   children: [
                     _heroCard(data),
-                    SectionHeader(
-                      title: StringConstants.accounts,
-                      accentColor: AppColors.accountsColor,
-                      actionLabel: StringConstants.viewAll,
-                      onActionTap: () => _openSection(
-                        context,
-                        const AccountsScreen(),
-                        'Accounts',
+                    const Gap(15),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.accountsColor.withOpacity(0.75),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          SectionHeader(
+                            title: StringConstants.accounts,
+                            accentColor: AppColors.sectionHeaderBg,
+                            actionLabel: StringConstants.viewAll,
+                            onActionTap: () => _openSection(
+                              context,
+                              const AccountsScreen(),
+                              'Accounts',
+                            ),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _openSection(
+                              context,
+                              const AccountsScreen(),
+                              'Accounts',
+                            ),
+                            child: _accountsRow(data),
+                          ),
+                        ],
                       ),
                     ),
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => _openSection(
-                        context,
-                        const AccountsScreen(),
-                        'Accounts',
+                    const Gap(25),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.emrColor.withOpacity(0.75),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      child: _accountsRow(data),
+                      child: Column(
+                        children: [
+                          SectionHeader(
+                            title: StringConstants.emr,
+                            accentColor: AppColors.sectionHeaderBg,
+                            actionLabel: StringConstants.viewAll,
+                            onActionTap: () =>
+                                _openSection(context, const EmrScreen(), 'EMR'),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () =>
+                                _openSection(context, const EmrScreen(), 'EMR'),
+                            child: _emrCard(data),
+                          ),
+                        ],
+                      ),
                     ),
-                    SectionHeader(
-                      title: StringConstants.emr,
-                      accentColor: AppColors.emrColor,
-                      actionLabel: StringConstants.viewAll,
-                      onActionTap: () =>
-                          _openSection(context, const EmrScreen(), 'EMR'),
-                    ),
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () =>
-                          _openSection(context, const EmrScreen(), 'EMR'),
-                      child: _emrCard(data),
-                    ),
-                    SectionHeader(
-                      title: StringConstants.store,
-                      accentColor: AppColors.storeColor,
-                      actionLabel: StringConstants.viewAll,
-                      onActionTap: () =>
-                          _openSection(context, const StoreScreen(), 'Store'),
-                    ),
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () =>
-                          _openSection(context, const StoreScreen(), 'Store'),
-                      child: _storeCard(data),
+                    const Gap(25),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.storeColor.withOpacity(0.75),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          SectionHeader(
+                            title: StringConstants.store,
+                            accentColor: AppColors.sectionHeaderBg,
+                            actionLabel: StringConstants.viewAll,
+                            onActionTap: () => _openSection(
+                                context, const StoreScreen(), 'Store'),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _openSection(
+                                context, const StoreScreen(), 'Store'),
+                            child: _storeCard(data),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -162,9 +198,9 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    KStyles().reg(
+                    KStyles().med(
                       text: StringConstants.combinedRevenue,
-                      size: 13,
+                      //size: 13,
                       color: AppColors.white.withOpacity(0.75),
                     ),
                     const Gap(4),
@@ -211,24 +247,24 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
           const Gap(14),
-          Row(
+          const Row(
             children: [
               LegendDot(
                 color: AppColors.chartGreen,
                 label: 'Accounts',
-                textColor: const Color(0xFFCBD5E1),
+                textColor: Color(0xFFCBD5E1),
               ),
-              const Gap(14),
+              Gap(14),
               LegendDot(
                 color: AppColors.chartRed,
                 label: 'EMR',
-                textColor: const Color(0xFFCBD5E1),
+                textColor: Color(0xFFCBD5E1),
               ),
-              const Gap(14),
+              Gap(14),
               LegendDot(
                 color: AppColors.chartPurple,
                 label: 'Store',
-                textColor: const Color(0xFFCBD5E1),
+                textColor: Color(0xFFCBD5E1),
               ),
             ],
           ),
@@ -287,9 +323,9 @@ class HomeScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          KStyles().reg(
+          KStyles().med(
             text: label,
-            size: 11,
+            // size: 11,
             color: AppColors.textSecondary,
             textAlign: TextAlign.center,
           ),
@@ -323,7 +359,7 @@ class HomeScreen extends StatelessWidget {
         children: [
           SafeChartWrapper(
             tag: 'home_gender_donut',
-            height: 90,
+            height: 100,
             builder: () => DonutChart(
               slices: genderSlices,
               centerText: data.currentPatients.toString(),
@@ -403,9 +439,9 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    KStyles().reg(
+                    KStyles().med(
                       text: StringConstants.totalCollection,
-                      size: 11,
+                      // size: 11,
                       color: AppColors.textSecondary,
                     ),
                     const Gap(2),
@@ -472,9 +508,9 @@ class HomeScreen extends StatelessWidget {
             color: AppColors.textPrimary,
           ),
           const Gap(2),
-          KStyles().reg(
+          KStyles().med(
             text: label,
-            size: 10,
+            size: 12,
             color: AppColors.textMuted,
           ),
         ],

@@ -112,9 +112,9 @@ class StoreScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                KStyles().reg(
+                KStyles().med(
                   text: StringConstants.totalCollection,
-                  size: 13,
+                  //size: 13,
                   color: AppColors.white.withOpacity(0.85),
                 ),
                 const Gap(4),

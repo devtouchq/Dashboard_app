@@ -37,10 +37,10 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icons/Appicon.png"
+  image_path: "assets/icons/app_icon.png"
   adaptive_icon_background: "#FEF2F2"
-  adaptive_icon_foreground: "assets/icons/Appicon.png"
-  adaptive_icon_monochrome: "assets/icons/Appicon.png"
+  adaptive_icon_foreground: "assets/icons/app_icon_foreground_1024.png"
+  adaptive_icon_monochrome: "assets/icons/app_icon_foreground_1024.png"
 flutter:
   uses-material-design: true
 

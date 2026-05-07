@@ -111,14 +111,14 @@ class EmrScreen extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                SizedBox(
+                const SizedBox(
                   width: 86,
                   height: 86,
                   child: CircularProgressIndicator(
                     value: 0.85,
                     strokeWidth: 7,
-                    backgroundColor: const Color(0xFFFECACA),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
+                    backgroundColor: Color(0xFFFECACA),
+                    valueColor: AlwaysStoppedAnimation<Color>(
                       AppColors.emrColor,
                     ),
                   ),
@@ -128,12 +128,12 @@ class EmrScreen extends StatelessWidget {
                   children: [
                     KStyles().bold(
                       text: '${data.currentPatients}',
-                      size: 18,
-                      color: const Color(0xFF7F1D1D),
+                      size: 19,
+                      color: const Color(0xFF991B1B),
                     ),
                     KStyles().reg(
                       text: 'current',
-                      size: 10,
+                      size: 12,
                       color: const Color(0xFF991B1B),
                     ),
                   ],
@@ -147,9 +147,9 @@ class EmrScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                KStyles().reg(
+                KStyles().med(
                   text: StringConstants.todaysStatus,
-                  size: 13,
+                  //size: 13,
                   color: const Color(0xFF991B1B),
                 ),
                 const Gap(4),

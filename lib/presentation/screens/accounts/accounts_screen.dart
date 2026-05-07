@@ -85,7 +85,7 @@ class AccountsScreen extends StatelessWidget {
                       children: [
                         _heroCard(data),
                         _receiptsVsPaymentsCard(data),
-                        SectionHeader(
+                        const SectionHeader(
                           title: StringConstants.frontoffice,
                           accentColor: AppColors.accountsColor,
                           leadingIcon: Icons.storefront_outlined,
@@ -116,9 +116,9 @@ class AccountsScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          KStyles().reg(
+          KStyles().med(
             text: StringConstants.netPosition,
-            size: 13,
+            // size: 13,
             color: AppColors.white.withOpacity(0.9),
           ),
           const Gap(6),
@@ -149,7 +149,7 @@ class AccountsScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        KStyles().reg(
+        KStyles().med(
           text: label,
           size: 11,
           color: AppColors.white.withOpacity(0.85),
@@ -157,7 +157,7 @@ class AccountsScreen extends StatelessWidget {
         const Gap(2),
         KStyles().semiBold(
           text: value,
-          size: 14,
+          //size: 14,
           color: AppColors.white,
         ),
       ],
@@ -179,14 +179,14 @@ class AccountsScreen extends StatelessWidget {
             builder: () => ReceiptsPaymentsChart(points: data.cashFlow),
           ),
           const Gap(10),
-          Row(
+          const Row(
             children: [
-              const LegendDot(
+              LegendDot(
                 color: AppColors.accountsColor,
                 label: StringConstants.receipts,
               ),
-              const Gap(16),
-              const LegendDot(
+              Gap(16),
+              LegendDot(
                 color: AppColors.emrColor,
                 label: StringConstants.payments,
               ),
