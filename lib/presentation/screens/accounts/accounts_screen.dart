@@ -7,7 +7,6 @@ import '../../../core/constants/string_constants.dart';
 import '../../../core/constants/text_styles.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../blocs/accounts/accounts_bloc.dart';
-import '../../blocs/navigation/navigation_bloc.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/charts/donut_chart.dart';
 import '../../widgets/charts/receipts_payments_chart.dart';
@@ -24,74 +23,84 @@ class AccountsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     AppLogger.info(_tag, 'build()');
-    return Column(
-      children: [
-        DashboardAppBar(
-          title: StringConstants.accounts,
-          titleColor: AppColors.accountsColor,
-          showBackButton: true,
-          onBack: () =>
-              context.read<NavigationBloc>().add(const NavigationTabChanged(0)),
-          actions: [
-            AppBarIconButton(icon: Icons.notifications_outlined, onTap: () {}),
+    return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            DashboardAppBar(
+              title: StringConstants.accounts,
+              titleColor: AppColors.accountsColor,
+              showBackButton: true,
+              onBack: () => Navigator.pop(context),
+              actions: [
+                AppBarIconButton(
+                  icon: Icons.notifications_outlined,
+                  onTap: () {},
+                ),
+              ],
+            ),
+            Expanded(
+              child: BlocConsumer<AccountsBloc, AccountsState>(
+                listener: (context, state) {
+                  AppLogger.info(_tag, 'state changed: ${state.status}');
+                  if (state.status == AccountsStatus.failure) {
+                    AppLogger.error(
+                      _tag,
+                      'Accounts load failed: ${state.errorMessage}',
+                    );
+                  }
+                },
+                builder: (context, state) {
+                  if (state.status == AccountsStatus.loading ||
+                      state.data == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (state.status == AccountsStatus.failure) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: KStyles().reg(
+                          text:
+                              'Failed to load accounts.\n${state.errorMessage ?? ''}',
+                          size: 14,
+                          color: AppColors.emrColor,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  }
+
+                  final data = state.data!;
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      AppLogger.info(_tag, 'pull-to-refresh');
+                      context
+                          .read<AccountsBloc>()
+                          .add(const AccountsRefreshed());
+                    },
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+                      children: [
+                        _heroCard(data),
+                        _receiptsVsPaymentsCard(data),
+                        SectionHeader(
+                          title: StringConstants.frontoffice,
+                          accentColor: AppColors.accountsColor,
+                          leadingIcon: Icons.storefront_outlined,
+                        ),
+                        _frontofficeStrip(data),
+                        _collectionDonutCard(data),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
         ),
-        Expanded(
-          child: BlocConsumer<AccountsBloc, AccountsState>(
-            listener: (context, state) {
-              AppLogger.info(_tag, 'state changed: ${state.status}');
-              if (state.status == AccountsStatus.failure) {
-                AppLogger.error(
-                  _tag,
-                  'Accounts load failed: ${state.errorMessage}',
-                );
-              }
-            },
-            builder: (context, state) {
-              if (state.status == AccountsStatus.loading ||
-                  state.data == null) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (state.status == AccountsStatus.failure) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: KStyles().reg(
-                      text:
-                          'Failed to load accounts.\n${state.errorMessage ?? ''}',
-                      size: 14,
-                      color: AppColors.emrColor,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
-
-              final data = state.data!;
-              return RefreshIndicator(
-                onRefresh: () async {
-                  AppLogger.info(_tag, 'pull-to-refresh');
-                  context.read<AccountsBloc>().add(const AccountsRefreshed());
-                },
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
-                  children: [
-                    _heroCard(data),
-                    _receiptsVsPaymentsCard(data),
-                    SectionHeader(
-                      title: StringConstants.frontoffice,
-                      accentColor: AppColors.accountsColor,
-                      leadingIcon: Icons.storefront_outlined,
-                    ),
-                    _frontofficeStrip(data),
-                    _collectionDonutCard(data),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+      ),
     );
   }
 

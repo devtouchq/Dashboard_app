@@ -6,7 +6,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/string_constants.dart';
 import '../../../core/constants/text_styles.dart';
 import '../../../core/utils/app_logger.dart';
-import '../../blocs/navigation/navigation_bloc.dart';
 import '../../blocs/store/store_bloc.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/charts/category_distribution_bar.dart';
@@ -22,68 +21,77 @@ class StoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     AppLogger.info(_tag, 'build()');
-    return Column(
-      children: [
-        DashboardAppBar(
-          title: StringConstants.store,
-          titleColor: AppColors.storeColor,
-          showBackButton: true,
-          onBack: () =>
-              context.read<NavigationBloc>().add(const NavigationTabChanged(0)),
-          actions: [
-            AppBarIconButton(icon: Icons.notifications_outlined, onTap: () {}),
+    return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            DashboardAppBar(
+              title: StringConstants.store,
+              titleColor: AppColors.storeColor,
+              showBackButton: true,
+              onBack: () => Navigator.pop(context),
+              actions: [
+                AppBarIconButton(
+                  icon: Icons.notifications_outlined,
+                  onTap: () {},
+                ),
+              ],
+            ),
+            Expanded(
+              child: BlocConsumer<StoreBloc, StoreState>(
+                listener: (context, state) {
+                  AppLogger.info(_tag, 'state changed: ${state.status}');
+                  if (state.status == StoreStatus.failure) {
+                    AppLogger.error(
+                      _tag,
+                      'Store load failed: ${state.errorMessage}',
+                    );
+                  }
+                },
+                builder: (context, state) {
+                  if (state.status == StoreStatus.loading ||
+                      state.data == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (state.status == StoreStatus.failure) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: KStyles().reg(
+                          text:
+                              'Failed to load store data.\n${state.errorMessage ?? ''}',
+                          size: 14,
+                          color: AppColors.emrColor,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  }
+
+                  final data = state.data!;
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      AppLogger.info(_tag, 'pull-to-refresh');
+                      context.read<StoreBloc>().add(const StoreRefreshed());
+                    },
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+                      children: [
+                        _heroCard(data),
+                        _metricsGrid(data),
+                        _categoryCard(data),
+                        _quickActions(),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
         ),
-        Expanded(
-          child: BlocConsumer<StoreBloc, StoreState>(
-            listener: (context, state) {
-              AppLogger.info(_tag, 'state changed: ${state.status}');
-              if (state.status == StoreStatus.failure) {
-                AppLogger.error(
-                  _tag,
-                  'Store load failed: ${state.errorMessage}',
-                );
-              }
-            },
-            builder: (context, state) {
-              if (state.status == StoreStatus.loading || state.data == null) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (state.status == StoreStatus.failure) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: KStyles().reg(
-                      text:
-                          'Failed to load store data.\n${state.errorMessage ?? ''}',
-                      size: 14,
-                      color: AppColors.emrColor,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
-
-              final data = state.data!;
-              return RefreshIndicator(
-                onRefresh: () async {
-                  AppLogger.info(_tag, 'pull-to-refresh');
-                  context.read<StoreBloc>().add(const StoreRefreshed());
-                },
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
-                  children: [
-                    _heroCard(data),
-                    _metricsGrid(data),
-                    _categoryCard(data),
-                    _quickActions(),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+      ),
     );
   }
 

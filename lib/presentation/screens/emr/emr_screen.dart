@@ -7,7 +7,6 @@ import '../../../core/constants/string_constants.dart';
 import '../../../core/constants/text_styles.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../blocs/emr/emr_bloc.dart';
-import '../../blocs/navigation/navigation_bloc.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/charts/patient_flow_chart.dart';
 import '../../widgets/dashboard_app_bar.dart';
@@ -22,68 +21,76 @@ class EmrScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     AppLogger.info(_tag, 'build()');
-    return Column(
-      children: [
-        DashboardAppBar(
-          title: StringConstants.emr,
-          titleColor: AppColors.emrColor,
-          showBackButton: true,
-          onBack: () =>
-              context.read<NavigationBloc>().add(const NavigationTabChanged(0)),
-          actions: [
-            AppBarIconButton(icon: Icons.notifications_outlined, onTap: () {}),
+    return Scaffold(
+      backgroundColor: AppColors.scaffoldBg,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            DashboardAppBar(
+              title: StringConstants.emr,
+              titleColor: AppColors.emrColor,
+              showBackButton: true,
+              onBack: () => Navigator.pop(context),
+              actions: [
+                AppBarIconButton(
+                  icon: Icons.notifications_outlined,
+                  onTap: () {},
+                ),
+              ],
+            ),
+            Expanded(
+              child: BlocConsumer<EmrBloc, EmrState>(
+                listener: (context, state) {
+                  AppLogger.info(_tag, 'state changed: ${state.status}');
+                  if (state.status == EmrStatus.failure) {
+                    AppLogger.error(
+                      _tag,
+                      'EMR load failed: ${state.errorMessage}',
+                    );
+                  }
+                },
+                builder: (context, state) {
+                  if (state.status == EmrStatus.loading || state.data == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (state.status == EmrStatus.failure) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: KStyles().reg(
+                          text:
+                              'Failed to load EMR data.\n${state.errorMessage ?? ''}',
+                          size: 14,
+                          color: AppColors.emrColor,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  }
+
+                  final data = state.data!;
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      AppLogger.info(_tag, 'pull-to-refresh');
+                      context.read<EmrBloc>().add(const EmrRefreshed());
+                    },
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+                      children: [
+                        _heroCard(data),
+                        _metricsGrid(data),
+                        _patientFlowCard(data),
+                        _ipOpGrid(data),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
         ),
-        Expanded(
-          child: BlocConsumer<EmrBloc, EmrState>(
-            listener: (context, state) {
-              AppLogger.info(_tag, 'state changed: ${state.status}');
-              if (state.status == EmrStatus.failure) {
-                AppLogger.error(
-                  _tag,
-                  'EMR load failed: ${state.errorMessage}',
-                );
-              }
-            },
-            builder: (context, state) {
-              if (state.status == EmrStatus.loading || state.data == null) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (state.status == EmrStatus.failure) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: KStyles().reg(
-                      text:
-                          'Failed to load EMR data.\n${state.errorMessage ?? ''}',
-                      size: 14,
-                      color: AppColors.emrColor,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
-
-              final data = state.data!;
-              return RefreshIndicator(
-                onRefresh: () async {
-                  AppLogger.info(_tag, 'pull-to-refresh');
-                  context.read<EmrBloc>().add(const EmrRefreshed());
-                },
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
-                  children: [
-                    _heroCard(data),
-                    _metricsGrid(data),
-                    _patientFlowCard(data),
-                    _ipOpGrid(data),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -104,14 +111,14 @@ class EmrScreen extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                const SizedBox(
+                SizedBox(
                   width: 86,
                   height: 86,
                   child: CircularProgressIndicator(
                     value: 0.85,
                     strokeWidth: 7,
-                    backgroundColor: Color(0xFFFECACA),
-                    valueColor: AlwaysStoppedAnimation<Color>(
+                    backgroundColor: const Color(0xFFFECACA),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
                       AppColors.emrColor,
                     ),
                   ),
@@ -230,7 +237,7 @@ class EmrScreen extends StatelessWidget {
       crossAxisCount: 2,
       crossAxisSpacing: 10,
       mainAxisSpacing: 10,
-      childAspectRatio: 1.5,
+      childAspectRatio: 1.8,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
