@@ -13,6 +13,11 @@ class AppColors {
   static const Color accountsColor = Color(0xFF1D9E75); // Teal - Accounts
   static const Color storeColor = Color(0xFF534AB7); // Purple - Store
 
+  static const Color hrColor = Color(0xFF2DA9A6); // teal
+  static const Color restaurantColor = Color(0xFF4F8A4F); // forest green
+  static const Color labColor = Color(0xFF1F1A4D); // coral
+  static const Color barColor = Color.fromARGB(255, 33, 85, 134);
+
   // Base colors
   static const Color white = Colors.white;
   static const Color black = Colors.black;
@@ -62,6 +67,14 @@ class AppColors {
   static const Color chartTeal = Color(0xFF37BFB8);
   static const Color chartNavy = Color(0xFF1F1A4D);
   static const Color chartAmber = Color(0xFFEF9F27);
+  // Chart series colors — one per series in the home stacked area chart
+  static const Color seriesAccounts = Color(0xFF10B981); // green
+  static const Color seriesEmr = Color(0xFFF87171); // red
+  static const Color seriesStore = Color(0xFFA78BFA); // purple
+  static const Color seriesHr = Color(0xFF2DA9A6); // teal
+  static const Color seriesRestaurant = Color(0xFF4F8A4F); // forest
+  static const Color seriesLab = Color(0xFFEF9F27); // amber
+  static const Color seriesBar = Color(0xFF3BA0FF); // sky blue
 
   // ──────────────────────────────────────────────────────────
   //  GRADIENT LISTS — these are what the metric cards consume

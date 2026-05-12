@@ -6,8 +6,7 @@ import '../../../core/constants/font_styles.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../../data/models/dashboard_data.dart';
 
-/// Stacked area chart showing Accounts/EMR/Store trend over the week.
-/// Built with the `graphic` package (Variant B).
+/// Stacked area chart showing the daily revenue trend for all 7 sections.
 class StackedAreaChart extends StatelessWidget {
   final List<TrendPoint> points;
   final double height;
@@ -15,8 +14,28 @@ class StackedAreaChart extends StatelessWidget {
   const StackedAreaChart({
     super.key,
     required this.points,
-    this.height = 100,
+    this.height = 200,
   });
+
+  static const List<String> _seriesOrder = [
+    'Bar',
+    'HR',
+    'Lab',
+    'Restaurant',
+    'Store',
+    'EMR',
+    'Accounts',
+  ];
+
+  static final List<Color> _seriesColors = [
+    AppColors.seriesBar.withValues(alpha: 0.9),
+    AppColors.seriesHr.withValues(alpha: 0.9),
+    AppColors.seriesLab.withValues(alpha: 0.9),
+    AppColors.seriesRestaurant.withValues(alpha: 0.9),
+    AppColors.seriesStore.withValues(alpha: 0.9),
+    AppColors.seriesEmr.withValues(alpha: 0.9),
+    AppColors.seriesAccounts.withValues(alpha: 0.9),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -26,24 +45,42 @@ class StackedAreaChart extends StatelessWidget {
     }
 
     final hasData = points.any(
-      (p) => p.accounts > 0 || p.emr > 0 || p.store > 0,
+      (p) =>
+          p.accounts > 0 ||
+          p.emr > 0 ||
+          p.store > 0 ||
+          p.hr > 0 ||
+          p.restaurant > 0 ||
+          p.lab > 0 ||
+          p.bar > 0,
     );
     if (!hasData) {
       AppLogger.info('StackedAreaChart', 'All zero values');
       return _empty();
     }
 
-    // Reshape data into a long format expected by graphic stacking.
     final data = <Map<String, dynamic>>[];
     for (final p in points) {
-      data.add({'day': p.day, 'value': p.accounts, 'series': 'Accounts'});
-      data.add({'day': p.day, 'value': p.emr, 'series': 'EMR'});
+      data.add({'day': p.day, 'value': p.bar, 'series': 'Bar'});
+      data.add({'day': p.day, 'value': p.hr, 'series': 'HR'});
+      data.add({'day': p.day, 'value': p.lab, 'series': 'Lab'});
+      data.add({'day': p.day, 'value': p.restaurant, 'series': 'Restaurant'});
       data.add({'day': p.day, 'value': p.store, 'series': 'Store'});
+      data.add({'day': p.day, 'value': p.emr, 'series': 'EMR'});
+      data.add({'day': p.day, 'value': p.accounts, 'series': 'Accounts'});
     }
+
+    AppLogger.info(
+      'StackedAreaChart',
+      'Plotting ${data.length} rows across ${points.length} days × 7 series',
+    );
 
     return SizedBox(
       height: height,
       child: Chart(
+        // Push the plotting area to the edges — kills the blank gutter
+        // graphic reserves for the (now-hidden) y-axis on the left.
+        padding: (_) => const EdgeInsets.fromLTRB(0, 8, 0, 22),
         data: data,
         variables: {
           'day': Variable(
@@ -54,6 +91,7 @@ class StackedAreaChart extends StatelessWidget {
           ),
           'series': Variable(
             accessor: (Map row) => row['series'] as String,
+            scale: OrdinalScale(values: _seriesOrder),
           ),
         },
         marks: [
@@ -62,11 +100,7 @@ class StackedAreaChart extends StatelessWidget {
             shape: ShapeEncode(value: BasicAreaShape(smooth: true)),
             color: ColorEncode(
               variable: 'series',
-              values: [
-                AppColors.chartGreen.withOpacity(0.5),
-                AppColors.chartRed.withOpacity(0.5),
-                AppColors.chartPurple.withOpacity(0.5),
-              ],
+              values: _seriesColors,
             ),
             modifiers: [StackModifier()],
           ),
@@ -78,15 +112,17 @@ class StackedAreaChart extends StatelessWidget {
               textStyle: TextStyle(
                 fontFamily: FontConst().fontFamily,
                 fontWeight: FontConst().regularFont,
-                fontSize: 9,
-                color: AppColors.textMuted,
+                fontSize: 10,
+                color: const Color(0xFFCBD5E1),
               ),
             )
             ..line = null,
           Defaults.verticalAxis
             ..label = null
             ..line = null
-            ..grid = PaintStyle(strokeColor: Colors.white.withOpacity(0.05)),
+            ..grid = PaintStyle(
+              strokeColor: Colors.white.withValues(alpha: 0.06),
+            ),
         ],
       ),
     );
@@ -100,7 +136,7 @@ class StackedAreaChart extends StatelessWidget {
         'No trend data yet',
         style: TextStyle(
           fontFamily: FontConst().fontFamily,
-          fontSize: 10,
+          fontSize: 11,
           color: AppColors.textMuted,
         ),
       ),

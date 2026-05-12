@@ -15,7 +15,11 @@ import '../../widgets/legend_dot.dart';
 import '../../widgets/safe_chart_wrapper.dart';
 import '../../widgets/section_header.dart';
 import '../accounts/accounts_screen.dart';
+import '../bar/bar_screen.dart';
 import '../emr/emr_screen.dart';
+import '../hr/hr_screen.dart';
+import '../lab/lab_screen.dart';
+import '../restaurant/restaurant_screen.dart';
 import '../store/store_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -85,7 +89,7 @@ class HomeScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.accountsColor.withOpacity(0.75),
+                        color: AppColors.accountsColor.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
@@ -116,7 +120,7 @@ class HomeScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.emrColor.withOpacity(0.75),
+                        color: AppColors.emrColor.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
@@ -141,7 +145,7 @@ class HomeScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: AppColors.storeColor.withOpacity(0.75),
+                        color: AppColors.storeColor.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
@@ -162,6 +166,127 @@ class HomeScreen extends StatelessWidget {
                         ],
                       ),
                     ),
+                    const Gap(25),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.hrColor.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          SectionHeader(
+                            title: StringConstants.hr,
+                            accentColor: AppColors.sectionHeaderBg,
+                            actionLabel: StringConstants.viewAll,
+                            onActionTap: () =>
+                                _openSection(context, const HrScreen(), 'HR'),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () =>
+                                _openSection(context, const HrScreen(), 'HR'),
+                            child: _simpleSectionTile(
+                              icon: Icons.groups_outlined,
+                              title: 'Attendance',
+                              subtitle: '10 present · 45 absent',
+                              accent: AppColors.hrColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Gap(25),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color:
+                            AppColors.restaurantColor.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          SectionHeader(
+                            title: StringConstants.restaurant,
+                            accentColor: AppColors.sectionHeaderBg,
+                            actionLabel: StringConstants.viewAll,
+                            onActionTap: () => _openSection(context,
+                                const RestaurantScreen(), 'Restaurant'),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _openSection(context,
+                                const RestaurantScreen(), 'Restaurant'),
+                            child: _simpleSectionTile(
+                              icon: Icons.restaurant_outlined,
+                              title: 'Restaurant',
+                              subtitle: '5 pax · ₹10.00 collected',
+                              accent: AppColors.restaurantColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Gap(25),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.labColor.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          SectionHeader(
+                            title: StringConstants.lab,
+                            accentColor: AppColors.sectionHeaderBg,
+                            actionLabel: StringConstants.viewAll,
+                            onActionTap: () =>
+                                _openSection(context, const LabScreen(), 'Lab'),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () =>
+                                _openSection(context, const LabScreen(), 'Lab'),
+                            child: _simpleSectionTile(
+                              icon: Icons.science_outlined,
+                              title: 'Lab',
+                              subtitle: '8 tests · ₹20.00 collected',
+                              accent: AppColors.labColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Gap(25),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.barColor.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          SectionHeader(
+                            title: StringConstants.bar,
+                            accentColor: AppColors.sectionHeaderBg,
+                            actionLabel: StringConstants.viewAll,
+                            onActionTap: () =>
+                                _openSection(context, const BarScreen(), 'Bar'),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () =>
+                                _openSection(context, const BarScreen(), 'Bar'),
+                            child: _simpleSectionTile(
+                              icon: Icons.local_bar_outlined,
+                              title: 'Bar',
+                              subtitle: '₹10.00 today',
+                              accent: AppColors.barColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               );
@@ -169,6 +294,61 @@ class HomeScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _simpleSectionTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color accent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderColor),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: accent, size: 20),
+          ),
+          const Gap(12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                KStyles().semiBold(
+                  text: title,
+                  size: 14,
+                  color: AppColors.textPrimary,
+                ),
+                const Gap(2),
+                KStyles().reg(
+                  text: subtitle,
+                  size: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.chevron_right,
+            size: 20,
+            color: AppColors.textMuted,
+          ),
+        ],
+      ),
     );
   }
 
@@ -201,7 +381,7 @@ class HomeScreen extends StatelessWidget {
                     KStyles().med(
                       text: StringConstants.combinedRevenue,
                       //size: 13,
-                      color: AppColors.white.withOpacity(0.75),
+                      color: AppColors.white.withValues(alpha: 0.75),
                     ),
                     const Gap(4),
                     KStyles().bold(
@@ -235,7 +415,7 @@ class HomeScreen extends StatelessWidget {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: KStyles().med(
@@ -247,32 +427,55 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
           const Gap(14),
-          const Row(
+          const Wrap(
+            spacing: 14, // gap between dots on the same row
+            runSpacing: 8, // gap between rows when they wrap
             children: [
               LegendDot(
-                color: AppColors.chartGreen,
+                color: AppColors.seriesAccounts,
                 label: 'Accounts',
                 textColor: Color(0xFFCBD5E1),
               ),
-              Gap(14),
               LegendDot(
-                color: AppColors.chartRed,
+                color: AppColors.seriesEmr,
                 label: 'EMR',
                 textColor: Color(0xFFCBD5E1),
               ),
-              Gap(14),
               LegendDot(
-                color: AppColors.chartPurple,
+                color: AppColors.seriesStore,
                 label: 'Store',
+                textColor: Color(0xFFCBD5E1),
+              ),
+              LegendDot(
+                color: AppColors.seriesHr,
+                label: 'HR',
+                textColor: Color(0xFFCBD5E1),
+              ),
+              LegendDot(
+                color: AppColors.seriesRestaurant,
+                label: 'Restaurant',
+                textColor: Color(0xFFCBD5E1),
+              ),
+              LegendDot(
+                color: AppColors.seriesLab,
+                label: 'Lab',
+                textColor: Color(0xFFCBD5E1),
+              ),
+              LegendDot(
+                color: AppColors.seriesBar,
+                label: 'Bar',
                 textColor: Color(0xFFCBD5E1),
               ),
             ],
           ),
           const Gap(8),
-          SafeChartWrapper(
-            tag: 'home_stacked_area',
-            height: 110,
-            builder: () => StackedAreaChart(points: data.trend),
+          Center(
+            child: SafeChartWrapper(
+              tag: 'home_stacked_area',
+              height: 180,
+              width: 350,
+              builder: () => StackedAreaChart(points: data.trend),
+            ),
           ),
         ],
       ),
@@ -467,7 +670,8 @@ class HomeScreen extends StatelessWidget {
                         width: 8,
                         height: heights[i],
                         decoration: BoxDecoration(
-                          color: AppColors.storeColor.withOpacity(opacity),
+                          color:
+                              AppColors.storeColor.withValues(alpha: opacity),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),

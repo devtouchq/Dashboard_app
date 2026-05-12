@@ -11,6 +11,7 @@ class DashboardAppBar extends StatelessWidget {
   final bool showBackButton;
   final List<Widget>? actions;
   final VoidCallback? onBack;
+  final Color? bgcolor;
 
   const DashboardAppBar({
     super.key,
@@ -20,62 +21,66 @@ class DashboardAppBar extends StatelessWidget {
     this.showBackButton = false,
     this.actions,
     this.onBack,
+    this.bgcolor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Row(
-        children: [
-          if (showBackButton) ...[
-            _IconButton(
-              icon: Icons.arrow_back,
-              onTap: onBack ?? () => Navigator.maybePop(context),
-            ),
-            const Gap(10),
-          ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (greeting != null) ...[
-                  KStyles().reg(
-                    text: greeting!,
-                    size: 14,
-                    color: AppColors.textSecondary,
-                  ),
-                  const Gap(1),
-                ],
-                //display tile in center if no greeting,
-                if (greeting == null)
-                  Center(
-                    child: KStyles().bold(
+    return Container(
+      color: bgcolor,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Row(
+          children: [
+            if (showBackButton) ...[
+              _IconButton(
+                icon: Icons.arrow_back,
+                onTap: onBack ?? () => Navigator.maybePop(context),
+              ),
+              const Gap(10),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (greeting != null) ...[
+                    KStyles().reg(
+                      text: greeting!,
+                      size: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                    const Gap(1),
+                  ],
+                  //display tile in center if no greeting,
+                  if (greeting == null)
+                    Center(
+                      child: KStyles().bold(
+                        text: title,
+                        size: 22,
+                        color: titleColor ?? AppColors.textPrimary,
+                      ),
+                    )
+                  else
+                    KStyles().bold(
                       text: title,
                       size: 22,
                       color: titleColor ?? AppColors.textPrimary,
                     ),
-                  )
-                else
-                  KStyles().bold(
-                    text: title,
-                    size: 22,
-                    color: titleColor ?? AppColors.textPrimary,
-                  ),
-              ],
-            ),
-          ),
-          if (actions != null)
-            Row(
-              children: [
-                for (var i = 0; i < actions!.length; i++) ...[
-                  if (i > 0) const Gap(12),
-                  actions![i],
                 ],
-              ],
+              ),
             ),
-        ],
+            if (actions != null)
+              Row(
+                children: [
+                  for (var i = 0; i < actions!.length; i++) ...[
+                    if (i > 0) const Gap(12),
+                    actions![i],
+                  ],
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }

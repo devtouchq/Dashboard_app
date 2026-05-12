@@ -10,21 +10,24 @@ import '../../core/utils/app_logger.dart';
 class SafeChartWrapper extends StatelessWidget {
   final Widget Function() builder;
   final String tag;
-  final double height;
+  final double? height;
+  final double? width;
   final String fallbackMessage;
 
   const SafeChartWrapper({
     super.key,
     required this.builder,
     required this.tag,
-    this.height = 100,
+    this.height,
+    this.width,
     this.fallbackMessage = 'No data to display',
   });
 
   @override
   Widget build(BuildContext context) {
+    Widget child;
     try {
-      return builder();
+      child = builder();
     } catch (e, st) {
       AppLogger.error(
         'Chart/$tag',
@@ -32,13 +35,28 @@ class SafeChartWrapper extends StatelessWidget {
         error: e,
         stackTrace: st,
       );
-      return _fallback();
+      child = _fallback();
     }
+
+    // If a width is set, center the chart at that width so it doesn't
+    // stretch to fill the parent.
+    if (width != null) {
+      return Center(
+        child: SizedBox(
+          
+          width: width,
+          child: child,
+        ),
+      );
+    }
+
+    return child;
   }
 
   Widget _fallback() {
     return Container(
-      height: height,
+      height: height ?? 150,
+      width: width ?? double.infinity,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: AppColors.scaffoldBg,

@@ -70,4 +70,26 @@ class StringConstants {
   static const String collected = "collected";
   static const String vsYesterday = "vs yesterday";
   static const String vsLastWeek = "vs last week";
+
+   // HR
+  static const String hr = "HR";
+  static const String totalPresent = "Total Present";
+  static const String totalAbsent = "Total Absent";
+  static const String employeeInformation = "Employee Information";
+  static const String absent = "Absent";
+  static const String present = "Present";
+
+  // Restaurant
+  static const String restaurant = "Restaurant";
+  static const String totalPax = "Total Pax";
+  static const String totalRevenue = "Total Revenue";
+  static const String runningTable = "Running Table";
+
+  // Lab
+  static const String lab = "Lab";
+  static const String totalTestCount = "Total Test Count";
+
+  // Bar
+  static const String bar = "Bar";
+  static const String categoryWiseSales = "Category Wise Sales";
 }
