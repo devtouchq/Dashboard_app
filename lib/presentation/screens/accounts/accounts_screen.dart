@@ -8,12 +8,10 @@ import '../../../core/constants/text_styles.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../blocs/accounts/accounts_bloc.dart';
 import '../../widgets/app_card.dart';
-import '../../widgets/charts/donut_chart.dart';
 import '../../widgets/charts/receipts_payments_chart.dart';
 import '../../widgets/dashboard_app_bar.dart';
 import '../../widgets/legend_dot.dart';
 import '../../widgets/safe_chart_wrapper.dart';
-import '../../widgets/section_header.dart';
 
 class AccountsScreen extends StatelessWidget {
   const AccountsScreen({super.key});
@@ -85,13 +83,13 @@ class AccountsScreen extends StatelessWidget {
                       children: [
                         _heroCard(data),
                         _receiptsVsPaymentsCard(data),
-                        const SectionHeader(
-                          title: StringConstants.frontoffice,
-                          accentColor: AppColors.accountsColor,
-                          leadingIcon: Icons.storefront_outlined,
-                        ),
-                        _frontofficeStrip(data),
-                        _collectionDonutCard(data),
+                        // const SectionHeader(
+                        //   title: StringConstants.frontoffice,
+                        //   accentColor: AppColors.accountsColor,
+                        //   leadingIcon: Icons.storefront_outlined,
+                        // ),
+                        // _frontofficeStrip(data),
+                        // _collectionDonutCard(data),
                       ],
                     ),
                   );
@@ -197,136 +195,136 @@ class AccountsScreen extends StatelessWidget {
     );
   }
 
-  Widget _frontofficeStrip(data) {
-    return AppCard(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      child: Row(
-        children: [
-          _strip('${data.checkIn}', StringConstants.checkIn,
-              valueColor: AppColors.accountsColor, hasDivider: true),
-          _strip('${data.currentGuests}', StringConstants.current,
-              hasDivider: true),
-          _strip('${data.expected}', StringConstants.expected,
-              hasDivider: true),
-          _strip('${data.checkOut}', StringConstants.checkOut),
-        ],
-      ),
-    );
-  }
+  // Widget _frontofficeStrip(data) {
+  //   return AppCard(
+  //     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+  //     child: Row(
+  //       children: [
+  //         _strip('${data.checkIn}', StringConstants.checkIn,
+  //             valueColor: AppColors.accountsColor, hasDivider: true),
+  //         _strip('${data.currentGuests}', StringConstants.current,
+  //             hasDivider: true),
+  //         _strip('${data.expected}', StringConstants.expected,
+  //             hasDivider: true),
+  //         _strip('${data.checkOut}', StringConstants.checkOut),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  Widget _strip(String value, String label,
-      {Color valueColor = AppColors.textPrimary, bool hasDivider = false}) {
-    return Expanded(
-      child: Container(
-        decoration: hasDivider
-            ? const BoxDecoration(
-                border: Border(
-                  right: BorderSide(color: AppColors.dividerColor),
-                ),
-              )
-            : null,
-        padding: const EdgeInsets.all(4),
-        child: Column(
-          children: [
-            KStyles().bold(
-              text: value,
-              size: 20,
-              color: valueColor,
-            ),
-            const Gap(2),
-            KStyles().reg(
-              text: label,
-              size: 11,
-              color: AppColors.textSecondary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Widget _strip(String value, String label,
+  //     {Color valueColor = AppColors.textPrimary, bool hasDivider = false}) {
+  //   return Expanded(
+  //     child: Container(
+  //       decoration: hasDivider
+  //           ? const BoxDecoration(
+  //               border: Border(
+  //                 right: BorderSide(color: AppColors.dividerColor),
+  //               ),
+  //             )
+  //           : null,
+  //       padding: const EdgeInsets.all(4),
+  //       child: Column(
+  //         children: [
+  //           KStyles().bold(
+  //             text: value,
+  //             size: 20,
+  //             color: valueColor,
+  //           ),
+  //           const Gap(2),
+  //           KStyles().reg(
+  //             text: label,
+  //             size: 11,
+  //             color: AppColors.textSecondary,
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
-  Widget _collectionDonutCard(data) {
-    final allSlices = data.collectionSlices as List;
-    AppLogger.info(
-      _tag,
-      'Building collection donut with ${allSlices.length} slices, '
-      'total=${data.totalCollection}',
-    );
+  // Widget _collectionDonutCard(data) {
+  //   final allSlices = data.collectionSlices as List;
+  //   AppLogger.info(
+  //     _tag,
+  //     'Building collection donut with ${allSlices.length} slices, '
+  //     'total=${data.totalCollection}',
+  //   );
 
-    final colorByMode = {
-      StringConstants.cheque: AppColors.emrColor,
-      StringConstants.cash: AppColors.accountsColor,
-      StringConstants.upi: AppColors.storeColor,
-    };
+  //   final colorByMode = {
+  //     StringConstants.cheque: AppColors.emrColor,
+  //     StringConstants.cash: AppColors.accountsColor,
+  //     StringConstants.upi: AppColors.storeColor,
+  //   };
 
-    final donutSlices = <DonutSlice>[];
-    for (final s in allSlices) {
-      if (s.percent > 0) {
-        donutSlices.add(
-          DonutSlice(
-            label: s.mode,
-            value: s.percent.toDouble(),
-            color: colorByMode[s.mode] ?? AppColors.grey,
-          ),
-        );
-      }
-    }
+  //   final donutSlices = <DonutSlice>[];
+  //   for (final s in allSlices) {
+  //     if (s.percent > 0) {
+  //       donutSlices.add(
+  //         DonutSlice(
+  //           label: s.mode,
+  //           value: s.percent.toDouble(),
+  //           color: colorByMode[s.mode] ?? AppColors.grey,
+  //         ),
+  //       );
+  //     }
+  //   }
 
-    return AppCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        children: [
-          const CardTitleRow(
-            title: StringConstants.totalCollection,
-            pillText: StringConstants.today,
-          ),
-          Row(
-            children: [
-              SafeChartWrapper(
-                tag: 'collection_donut',
-                height: 100,
-                builder: () => DonutChart(
-                  slices: donutSlices,
-                  centerText: '₹${data.totalCollection.toStringAsFixed(0)}',
-                  centerSubText: StringConstants.collected,
-                  size: 100,
-                ),
-              ),
-              const Gap(16),
-              Expanded(
-                child: Column(
-                  children: allSlices.map<Widget>((s) {
-                    final isActive = s.percent > 0;
-                    final color = colorByMode[s.mode] ?? AppColors.grey;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5),
-                      child: Row(
-                        children: [
-                          LegendDot(
-                            color: isActive ? color : const Color(0xFFE5E7EB),
-                            label: s.mode,
-                            textColor: isActive
-                                ? AppColors.textSecondary
-                                : AppColors.textMuted,
-                          ),
-                          const Spacer(),
-                          KStyles().semiBold(
-                            text: '${s.percent.toStringAsFixed(0)}%',
-                            size: 13,
-                            color: isActive
-                                ? AppColors.textPrimary
-                                : AppColors.textMuted,
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  //   return AppCard(
+  //     padding: const EdgeInsets.all(14),
+  //     child: Column(
+  //       children: [
+  //         const CardTitleRow(
+  //           title: StringConstants.totalCollection,
+  //           pillText: StringConstants.today,
+  //         ),
+  //         Row(
+  //           children: [
+  //             SafeChartWrapper(
+  //               tag: 'collection_donut',
+  //               height: 100,
+  //               builder: () => DonutChart(
+  //                 slices: donutSlices,
+  //                 centerText: '₹${data.totalCollection.toStringAsFixed(0)}',
+  //                 centerSubText: StringConstants.collected,
+  //                 size: 100,
+  //               ),
+  //             ),
+  //             const Gap(16),
+  //             Expanded(
+  //               child: Column(
+  //                 children: allSlices.map<Widget>((s) {
+  //                   final isActive = s.percent > 0;
+  //                   final color = colorByMode[s.mode] ?? AppColors.grey;
+  //                   return Padding(
+  //                     padding: const EdgeInsets.symmetric(vertical: 5),
+  //                     child: Row(
+  //                       children: [
+  //                         LegendDot(
+  //                           color: isActive ? color : const Color(0xFFE5E7EB),
+  //                           label: s.mode,
+  //                           textColor: isActive
+  //                               ? AppColors.textSecondary
+  //                               : AppColors.textMuted,
+  //                         ),
+  //                         const Spacer(),
+  //                         KStyles().semiBold(
+  //                           text: '${s.percent.toStringAsFixed(0)}%',
+  //                           size: 13,
+  //                           color: isActive
+  //                               ? AppColors.textPrimary
+  //                               : AppColors.textMuted,
+  //                         ),
+  //                       ],
+  //                     ),
+  //                   );
+  //                 }).toList(),
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }
