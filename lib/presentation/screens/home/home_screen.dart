@@ -15,8 +15,10 @@ import '../../widgets/legend_dot.dart';
 import '../../widgets/safe_chart_wrapper.dart';
 import '../../widgets/section_header.dart';
 import '../accounts/accounts_screen.dart';
+import '../banquet/banquet_screen.dart';
 import '../bar/bar_screen.dart';
 import '../emr/emr_screen.dart';
+import '../frontoffice/frontoffice_screen.dart';
 import '../hr/hr_screen.dart';
 import '../lab/lab_screen.dart';
 import '../restaurant/restaurant_screen.dart';
@@ -287,6 +289,67 @@ class HomeScreen extends StatelessWidget {
                         ],
                       ),
                     ),
+                    const Gap(25),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color:
+                            AppColors.frontofficeColor.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          SectionHeader(
+                            title: StringConstants.frontofficeFull,
+                            accentColor: AppColors.sectionHeaderBg,
+                            actionLabel: StringConstants.viewAll,
+                            onActionTap: () => _openSection(context,
+                                const FrontofficeScreen(), 'Frontoffice'),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _openSection(context,
+                                const FrontofficeScreen(), 'Frontoffice'),
+                            child: _simpleSectionTile(
+                              icon: Icons.meeting_room_outlined,
+                              title: 'Frontoffice',
+                              subtitle: '120 check-ins · ₹55,146 collected',
+                              accent: AppColors.frontofficeColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Gap(25),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.banquetColor.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          SectionHeader(
+                            title: StringConstants.banquet,
+                            accentColor: AppColors.sectionHeaderBg,
+                            actionLabel: StringConstants.viewAll,
+                            onActionTap: () => _openSection(
+                                context, const BanquetScreen(), 'Banquet'),
+                          ),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _openSection(
+                                context, const BanquetScreen(), 'Banquet'),
+                            child: _simpleSectionTile(
+                              icon: Icons.celebration_outlined,
+                              title: 'Banquet',
+                              subtitle: '0 reservations · 0 functions',
+                              accent: AppColors.banquetColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               );
@@ -464,6 +527,16 @@ class HomeScreen extends StatelessWidget {
               LegendDot(
                 color: AppColors.seriesBar,
                 label: 'Bar',
+                textColor: Color(0xFFCBD5E1),
+              ),
+              LegendDot(
+                color: AppColors.seriesFrontoffice,
+                label: 'Frontoffice',
+                textColor: Color(0xFFCBD5E1),
+              ),
+              LegendDot(
+                color: AppColors.seriesBanquet,
+                label: 'Banquet',
                 textColor: Color(0xFFCBD5E1),
               ),
             ],

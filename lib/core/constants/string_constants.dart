@@ -71,7 +71,7 @@ class StringConstants {
   static const String vsYesterday = "vs yesterday";
   static const String vsLastWeek = "vs last week";
 
-   // HR
+  // HR
   static const String hr = "HR";
   static const String totalPresent = "Total Present";
   static const String totalAbsent = "Total Absent";
@@ -92,4 +92,17 @@ class StringConstants {
   // Bar
   static const String bar = "Bar";
   static const String categoryWiseSales = "Category Wise Sales";
+
+  // Frontoffice
+  static const String frontofficeFull = "Frontoffice";
+  static const String totalCheckIn = "Total Check-in";
+  static const String currentGuest = "Current Guest";
+  static const String expectedArrival = "Expected Arrival";
+  static const String probableCheckOut = "Probable check-out";
+  static const String employeeCredit = "Employee Credit";
+
+  // Banquet
+  static const String banquet = "Banquet";
+  static const String numberOfReservations = "Number of Reservations";
+  static const String numberOfFunctions = "Number of Functions";
 }

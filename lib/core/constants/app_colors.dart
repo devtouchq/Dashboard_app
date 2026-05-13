@@ -12,12 +12,13 @@ class AppColors {
   static const Color emrColor = Color(0xFFE2585A); // Coral - EMR
   static const Color accountsColor = Color(0xFF1D9E75); // Teal - Accounts
   static const Color storeColor = Color(0xFF534AB7); // Purple - Store
-
   static const Color hrColor = Color(0xFF2DA9A6); // teal
   static const Color restaurantColor = Color(0xFF4F8A4F); // forest green
   static const Color labColor = Color(0xFF1F1A4D); // coral
   static const Color barColor = Color.fromARGB(255, 33, 85, 134);
-
+  static const Color frontofficeColor =
+      Color.fromARGB(213, 200, 50, 52); // same red family
+  static const Color banquetColor = Color.fromARGB(255, 150, 150, 150); // grey
   // Base colors
   static const Color white = Colors.white;
   static const Color black = Colors.black;
@@ -75,6 +76,24 @@ class AppColors {
   static const Color seriesRestaurant = Color(0xFF4F8A4F); // forest
   static const Color seriesLab = Color(0xFFEF9F27); // amber
   static const Color seriesBar = Color(0xFF3BA0FF); // sky blue
+  static const Color seriesFrontoffice = Color(0xFF1D9E75); // green
+  static const Color seriesBanquet = Color(0xFF2DA9A6); // teal-cyan
+
+// Banquet tile colors (light tinted backgrounds matching the screenshot)
+  static const Color banquetBlueBg = Color(0xFFDDE7F2);
+  static const Color banquetBlueBorder = Color(0xFF8FA4B9);
+  static const Color banquetPeachBg = Color(0xFFF9E1D0);
+  static const Color banquetPeachBorder = Color(0xFFB97A5C);
+  static const Color banquetGreenBg = Color(0xFFD8EFC3);
+  static const Color banquetGreenBorder = Color(0xFF6E9F4F);
+
+  // Frontoffice tile background (light blue gradient)
+  static const Color frontofficeTileStart = Color(0xFFE3EAF3);
+  static const Color frontofficeTileEnd = Color(0xFFC9D8E8);
+
+  // Total Collection donut on Frontoffice
+  static const Color frontofficeCash = Color(0xFFFF6B2C); // orange
+  static const Color frontofficeCredit = Color(0xFF1A1F6C); // dark navy
 
   // ──────────────────────────────────────────────────────────
   //  GRADIENT LISTS — these are what the metric cards consume

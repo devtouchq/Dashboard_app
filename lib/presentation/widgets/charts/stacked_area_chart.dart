@@ -6,7 +6,7 @@ import '../../../core/constants/font_styles.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../../data/models/dashboard_data.dart';
 
-/// Stacked area chart showing the daily revenue trend for all 7 sections.
+/// Stacked area chart showing the daily revenue trend for all 9 sections.
 class StackedAreaChart extends StatelessWidget {
   final List<TrendPoint> points;
   final double height;
@@ -17,20 +17,27 @@ class StackedAreaChart extends StatelessWidget {
     this.height = 200,
   });
 
+  // Bottom-to-top stack order. Smaller-value series first so they don't
+  // get squeezed at the top.
   static const List<String> _seriesOrder = [
+    'Banquet',
     'Bar',
     'HR',
     'Lab',
+    'Frontoffice',
     'Restaurant',
     'Store',
     'EMR',
     'Accounts',
   ];
 
+  // Colors aligned 1:1 with _seriesOrder above.
   static final List<Color> _seriesColors = [
+    AppColors.seriesBanquet.withValues(alpha: 0.9),
     AppColors.seriesBar.withValues(alpha: 0.9),
     AppColors.seriesHr.withValues(alpha: 0.9),
     AppColors.seriesLab.withValues(alpha: 0.9),
+    AppColors.seriesFrontoffice.withValues(alpha: 0.9),
     AppColors.seriesRestaurant.withValues(alpha: 0.9),
     AppColors.seriesStore.withValues(alpha: 0.9),
     AppColors.seriesEmr.withValues(alpha: 0.9),
@@ -52,7 +59,9 @@ class StackedAreaChart extends StatelessWidget {
           p.hr > 0 ||
           p.restaurant > 0 ||
           p.lab > 0 ||
-          p.bar > 0,
+          p.bar > 0 ||
+          p.frontoffice > 0 ||
+          p.banquet > 0,
     );
     if (!hasData) {
       AppLogger.info('StackedAreaChart', 'All zero values');
@@ -61,9 +70,11 @@ class StackedAreaChart extends StatelessWidget {
 
     final data = <Map<String, dynamic>>[];
     for (final p in points) {
+      data.add({'day': p.day, 'value': p.banquet, 'series': 'Banquet'});
       data.add({'day': p.day, 'value': p.bar, 'series': 'Bar'});
       data.add({'day': p.day, 'value': p.hr, 'series': 'HR'});
       data.add({'day': p.day, 'value': p.lab, 'series': 'Lab'});
+      data.add({'day': p.day, 'value': p.frontoffice, 'series': 'Frontoffice'});
       data.add({'day': p.day, 'value': p.restaurant, 'series': 'Restaurant'});
       data.add({'day': p.day, 'value': p.store, 'series': 'Store'});
       data.add({'day': p.day, 'value': p.emr, 'series': 'EMR'});
@@ -72,14 +83,12 @@ class StackedAreaChart extends StatelessWidget {
 
     AppLogger.info(
       'StackedAreaChart',
-      'Plotting ${data.length} rows across ${points.length} days × 7 series',
+      'Plotting ${data.length} rows across ${points.length} days × 9 series',
     );
 
     return SizedBox(
       height: height,
       child: Chart(
-        // Push the plotting area to the edges — kills the blank gutter
-        // graphic reserves for the (now-hidden) y-axis on the left.
         padding: (_) => const EdgeInsets.fromLTRB(0, 8, 0, 22),
         data: data,
         variables: {

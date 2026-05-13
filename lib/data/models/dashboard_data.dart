@@ -3,7 +3,7 @@ import 'package:equatable/equatable.dart';
 /// Single point on the combined trend chart used on the Home hero.
 /// One value per section per day.
 class TrendPoint extends Equatable {
-  final String day; // e.g. Mon, Tue
+  final String day;
   final double accounts;
   final double emr;
   final double store;
@@ -11,6 +11,8 @@ class TrendPoint extends Equatable {
   final double restaurant;
   final double lab;
   final double bar;
+  final double frontoffice;
+  final double banquet;
 
   const TrendPoint({
     required this.day,
@@ -21,6 +23,8 @@ class TrendPoint extends Equatable {
     required this.restaurant,
     required this.lab,
     required this.bar,
+    required this.frontoffice,
+    required this.banquet,
   });
 
   TrendPoint copyWith({
@@ -32,6 +36,8 @@ class TrendPoint extends Equatable {
     double? restaurant,
     double? lab,
     double? bar,
+    double? frontoffice,
+    double? banquet,
   }) {
     return TrendPoint(
       day: day ?? this.day,
@@ -42,12 +48,24 @@ class TrendPoint extends Equatable {
       restaurant: restaurant ?? this.restaurant,
       lab: lab ?? this.lab,
       bar: bar ?? this.bar,
+      frontoffice: frontoffice ?? this.frontoffice,
+      banquet: banquet ?? this.banquet,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [day, accounts, emr, store, hr, restaurant, lab, bar];
+  List<Object?> get props => [
+        day,
+        accounts,
+        emr,
+        store,
+        hr,
+        restaurant,
+        lab,
+        bar,
+        frontoffice,
+        banquet,
+      ];
 }
 
 /// Combined dashboard summary used on Home screen.

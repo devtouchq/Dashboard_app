@@ -6,10 +6,6 @@ class DashboardRepository {
 
   DashboardRepository(this._client);
 
-  /// Real API call would look like:
-  ///   final res = await _client.dio.get('/dashboard/summary');
-  ///   return DashboardData.fromJson(res.data);
-  /// For now we return mock data so the UI is fully runnable.
   Future<DashboardData> fetchDashboard() async {
     await Future.delayed(const Duration(milliseconds: 600));
 
@@ -26,6 +22,8 @@ class DashboardRepository {
           restaurant: 22,
           lab: 14,
           bar: 9,
+          frontoffice: 18,
+          banquet: 6,
         ),
         TrendPoint(
           day: 'Tue',
@@ -36,6 +34,8 @@ class DashboardRepository {
           restaurant: 28,
           lab: 18,
           bar: 11,
+          frontoffice: 24,
+          banquet: 9,
         ),
         TrendPoint(
           day: 'Wed',
@@ -46,6 +46,8 @@ class DashboardRepository {
           restaurant: 32,
           lab: 20,
           bar: 14,
+          frontoffice: 30,
+          banquet: 12,
         ),
         TrendPoint(
           day: 'Thu',
@@ -56,6 +58,8 @@ class DashboardRepository {
           restaurant: 38,
           lab: 24,
           bar: 16,
+          frontoffice: 36,
+          banquet: 14,
         ),
         TrendPoint(
           day: 'Fri',
@@ -66,6 +70,8 @@ class DashboardRepository {
           restaurant: 45,
           lab: 28,
           bar: 22,
+          frontoffice: 42,
+          banquet: 18,
         ),
         TrendPoint(
           day: 'Sat',
@@ -76,6 +82,8 @@ class DashboardRepository {
           restaurant: 58,
           lab: 32,
           bar: 30,
+          frontoffice: 52,
+          banquet: 24,
         ),
         TrendPoint(
           day: 'Sun',
@@ -86,6 +94,8 @@ class DashboardRepository {
           restaurant: 52,
           lab: 30,
           bar: 26,
+          frontoffice: 48,
+          banquet: 20,
         ),
       ],
       receipts: 0,
