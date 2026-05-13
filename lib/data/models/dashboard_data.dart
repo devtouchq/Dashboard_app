@@ -1,177 +1,137 @@
 import 'package:equatable/equatable.dart';
 
-/// Single point on the combined trend chart used on the Home hero.
-/// One value per section per day.
-class TrendPoint extends Equatable {
-  final String day;
-  final double accounts;
+/// One month on the combined revenue chart.
+class MonthlyRevenuePoint extends Equatable {
+  final String month;
   final double emr;
+  final double accounts;
   final double store;
-  final double hr;
-  final double restaurant;
-  final double lab;
   final double bar;
-  final double frontoffice;
-  final double banquet;
+  final double lab;
 
-  const TrendPoint({
-    required this.day,
-    required this.accounts,
+  const MonthlyRevenuePoint({
+    required this.month,
     required this.emr,
+    required this.accounts,
     required this.store,
-    required this.hr,
-    required this.restaurant,
-    required this.lab,
     required this.bar,
-    required this.frontoffice,
-    required this.banquet,
+    required this.lab,
   });
 
-  TrendPoint copyWith({
-    String? day,
-    double? accounts,
-    double? emr,
-    double? store,
-    double? hr,
-    double? restaurant,
-    double? lab,
-    double? bar,
-    double? frontoffice,
-    double? banquet,
-  }) {
-    return TrendPoint(
-      day: day ?? this.day,
-      accounts: accounts ?? this.accounts,
-      emr: emr ?? this.emr,
-      store: store ?? this.store,
-      hr: hr ?? this.hr,
-      restaurant: restaurant ?? this.restaurant,
-      lab: lab ?? this.lab,
-      bar: bar ?? this.bar,
-      frontoffice: frontoffice ?? this.frontoffice,
-      banquet: banquet ?? this.banquet,
-    );
-  }
-
   @override
-  List<Object?> get props => [
-        day,
-        accounts,
-        emr,
-        store,
-        hr,
-        restaurant,
-        lab,
-        bar,
-        frontoffice,
-        banquet,
-      ];
+  List<Object?> get props => [month, emr, accounts, store, bar, lab];
 }
 
-/// Combined dashboard summary used on Home screen.
+/// Aggregate data for the Home (Dashboard) screen.
 class DashboardData extends Equatable {
-  final double combinedRevenue;
-  final double trendChangePercent;
-  final List<TrendPoint> trend;
+  final List<MonthlyRevenuePoint> combinedRevenue;
 
-  // Accounts mini summary
-  final double receipts;
-  final double payments;
-  final double crediters;
-  final double debiters;
-
-  // EMR mini summary
-  final int currentPatients;
-  final int malePatients;
-  final int femalePatients;
-  final int ipPatients;
-  final int opPatients;
-
-  // Store mini summary
-  final double totalCollection;
-  final int storePurchase;
-  final int storeRevenue;
-  final int storeCollection;
-  final int storePayments;
+  // Quick stats per department, shown in the department tiles.
+  final int emrPatients;
+  final double emrRevenue;
+  final int accountsInvoices;
+  final double accountsRevenue;
+  final int storeItems;
+  final double storeRevenue;
+  final int barProducts;
+  final double barRevenue;
+  final int labTests;
+  final double labRevenue;
+  final int banquetEvents;
+  final double banquetRevenue;
+  final int restaurantOrders;
+  final double restaurantRevenue;
+  final int hrStaff;
+  final double hrRevenue;
+  final int frontofficeCheckIns;
+  final double frontofficeRevenue;
 
   const DashboardData({
     required this.combinedRevenue,
-    required this.trendChangePercent,
-    required this.trend,
-    required this.receipts,
-    required this.payments,
-    required this.crediters,
-    required this.debiters,
-    required this.currentPatients,
-    required this.malePatients,
-    required this.femalePatients,
-    required this.ipPatients,
-    required this.opPatients,
-    required this.totalCollection,
-    required this.storePurchase,
+    required this.emrPatients,
+    required this.emrRevenue,
+    required this.accountsInvoices,
+    required this.accountsRevenue,
+    required this.storeItems,
     required this.storeRevenue,
-    required this.storeCollection,
-    required this.storePayments,
+    required this.barProducts,
+    required this.barRevenue,
+    required this.labTests,
+    required this.labRevenue,
+    required this.banquetEvents,
+    required this.banquetRevenue,
+    required this.restaurantOrders,
+    required this.restaurantRevenue,
+    required this.hrStaff,
+    required this.hrRevenue,
+    required this.frontofficeCheckIns,
+    required this.frontofficeRevenue,
   });
 
   DashboardData copyWith({
-    double? combinedRevenue,
-    double? trendChangePercent,
-    List<TrendPoint>? trend,
-    double? receipts,
-    double? payments,
-    double? crediters,
-    double? debiters,
-    int? currentPatients,
-    int? malePatients,
-    int? femalePatients,
-    int? ipPatients,
-    int? opPatients,
-    double? totalCollection,
-    int? storePurchase,
-    int? storeRevenue,
-    int? storeCollection,
-    int? storePayments,
+    List<MonthlyRevenuePoint>? combinedRevenue,
+    int? emrPatients,
+    double? emrRevenue,
+    int? accountsInvoices,
+    double? accountsRevenue,
+    int? storeItems,
+    double? storeRevenue,
+    int? barProducts,
+    double? barRevenue,
+    int? labTests,
+    double? labRevenue,
+    int? banquetEvents,
+    double? banquetRevenue,
+    int? restaurantOrders,
+    double? restaurantRevenue,
+    int? hrStaff,
+    double? hrRevenue,
+    int? frontofficeCheckIns,
+    double? frontofficeRevenue,
   }) {
     return DashboardData(
       combinedRevenue: combinedRevenue ?? this.combinedRevenue,
-      trendChangePercent: trendChangePercent ?? this.trendChangePercent,
-      trend: trend ?? this.trend,
-      receipts: receipts ?? this.receipts,
-      payments: payments ?? this.payments,
-      crediters: crediters ?? this.crediters,
-      debiters: debiters ?? this.debiters,
-      currentPatients: currentPatients ?? this.currentPatients,
-      malePatients: malePatients ?? this.malePatients,
-      femalePatients: femalePatients ?? this.femalePatients,
-      ipPatients: ipPatients ?? this.ipPatients,
-      opPatients: opPatients ?? this.opPatients,
-      totalCollection: totalCollection ?? this.totalCollection,
-      storePurchase: storePurchase ?? this.storePurchase,
+      emrPatients: emrPatients ?? this.emrPatients,
+      emrRevenue: emrRevenue ?? this.emrRevenue,
+      accountsInvoices: accountsInvoices ?? this.accountsInvoices,
+      accountsRevenue: accountsRevenue ?? this.accountsRevenue,
+      storeItems: storeItems ?? this.storeItems,
       storeRevenue: storeRevenue ?? this.storeRevenue,
-      storeCollection: storeCollection ?? this.storeCollection,
-      storePayments: storePayments ?? this.storePayments,
+      barProducts: barProducts ?? this.barProducts,
+      barRevenue: barRevenue ?? this.barRevenue,
+      labTests: labTests ?? this.labTests,
+      labRevenue: labRevenue ?? this.labRevenue,
+      banquetEvents: banquetEvents ?? this.banquetEvents,
+      banquetRevenue: banquetRevenue ?? this.banquetRevenue,
+      restaurantOrders: restaurantOrders ?? this.restaurantOrders,
+      restaurantRevenue: restaurantRevenue ?? this.restaurantRevenue,
+      hrStaff: hrStaff ?? this.hrStaff,
+      hrRevenue: hrRevenue ?? this.hrRevenue,
+      frontofficeCheckIns: frontofficeCheckIns ?? this.frontofficeCheckIns,
+      frontofficeRevenue: frontofficeRevenue ?? this.frontofficeRevenue,
     );
   }
 
   @override
   List<Object?> get props => [
         combinedRevenue,
-        trendChangePercent,
-        trend,
-        receipts,
-        payments,
-        crediters,
-        debiters,
-        currentPatients,
-        malePatients,
-        femalePatients,
-        ipPatients,
-        opPatients,
-        totalCollection,
-        storePurchase,
+        emrPatients,
+        emrRevenue,
+        accountsInvoices,
+        accountsRevenue,
+        storeItems,
         storeRevenue,
-        storeCollection,
-        storePayments,
+        barProducts,
+        barRevenue,
+        labTests,
+        labRevenue,
+        banquetEvents,
+        banquetRevenue,
+        restaurantOrders,
+        restaurantRevenue,
+        hrStaff,
+        hrRevenue,
+        frontofficeCheckIns,
+        frontofficeRevenue,
       ];
 }

@@ -2,18 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 
-import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/section_theme.dart';
 import '../../../core/constants/string_constants.dart';
 import '../../../core/constants/text_styles.dart';
+import '../../../core/di/injector.dart';
 import '../../../core/utils/app_logger.dart';
+import '../../blocs/accounts/accounts_bloc.dart';
+import '../../blocs/banquet/banquet_bloc.dart';
+import '../../blocs/bar/bar_bloc.dart';
 import '../../blocs/dashboard/dashboard_bloc.dart';
-import '../../widgets/app_card.dart';
-import '../../widgets/charts/donut_chart.dart';
-import '../../widgets/charts/stacked_area_chart.dart';
-import '../../widgets/dashboard_app_bar.dart';
-import '../../widgets/legend_dot.dart';
-import '../../widgets/safe_chart_wrapper.dart';
-import '../../widgets/section_header.dart';
+import '../../blocs/emr/emr_bloc.dart';
+import '../../blocs/frontoffice/frontoffice_bloc.dart';
+import '../../blocs/hr/hr_bloc.dart';
+import '../../blocs/lab/lab_bloc.dart';
+import '../../blocs/restaurant/restaurant_bloc.dart';
+import '../../blocs/store/store_bloc.dart';
+import '../../widgets/chart_card.dart';
+import '../../widgets/charts/multi_line_chart.dart';
 import '../accounts/accounts_screen.dart';
 import '../banquet/banquet_screen.dart';
 import '../bar/bar_screen.dart';
@@ -32,765 +37,467 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     AppLogger.info(_tag, 'build()');
-    return Column(
-      children: [
-        DashboardAppBar(
-          greeting: StringConstants.welcomeBack,
-          title: StringConstants.dashboard,
-          actions: [
-            AppBarIconButton(icon: Icons.search, onTap: () {}),
-            AppBarIconButton(
-              icon: Icons.notifications_outlined,
-              onTap: () {},
-              showBadge: true,
-            ),
-          ],
+    final theme = SectionTheme.home;
+
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: theme.backgroundGradient[0],
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: theme.backgroundGradient,
+          ),
         ),
-        Expanded(
+        child: SafeArea(
+          bottom: false,
           child: BlocConsumer<DashboardBloc, DashboardState>(
             listener: (context, state) {
               AppLogger.info(_tag, 'state changed: ${state.status}');
               if (state.status == DashboardStatus.failure) {
-                AppLogger.error(
-                  _tag,
-                  'Dashboard load failed: ${state.errorMessage}',
-                );
+                AppLogger.error(_tag,
+                    'Dashboard load failed: ${state.errorMessage}');
               }
             },
             builder: (context, state) {
-              if (state.status == DashboardStatus.loading ||
-                  state.data == null) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (state.status == DashboardStatus.failure) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: KStyles().reg(
-                      text:
-                          'Failed to load dashboard.\n${state.errorMessage ?? ''}',
-                      size: 14,
-                      color: AppColors.emrColor,
-                      textAlign: TextAlign.center,
-                    ),
+              return Column(
+                children: [
+                  _topBar(),
+                  Expanded(
+                    child: _body(context, state, theme),
                   ),
-                );
-              }
-
-              final data = state.data!;
-              return RefreshIndicator(
-                onRefresh: () async {
-                  AppLogger.info(_tag, 'pull-to-refresh');
-                  context.read<DashboardBloc>().add(const DashboardRefreshed());
-                },
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
-                  children: [
-                    _heroCard(data),
-                    const Gap(15),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.accountsColor.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          SectionHeader(
-                            title: StringConstants.accounts,
-                            accentColor: AppColors.sectionHeaderBg,
-                            actionLabel: StringConstants.viewAll,
-                            onActionTap: () => _openSection(
-                              context,
-                              const AccountsScreen(),
-                              'Accounts',
-                            ),
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => _openSection(
-                              context,
-                              const AccountsScreen(),
-                              'Accounts',
-                            ),
-                            child: _accountsRow(data),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Gap(25),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.emrColor.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          SectionHeader(
-                            title: StringConstants.emr,
-                            accentColor: AppColors.sectionHeaderBg,
-                            actionLabel: StringConstants.viewAll,
-                            onActionTap: () =>
-                                _openSection(context, const EmrScreen(), 'EMR'),
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () =>
-                                _openSection(context, const EmrScreen(), 'EMR'),
-                            child: _emrCard(data),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Gap(25),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.storeColor.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          SectionHeader(
-                            title: StringConstants.store,
-                            accentColor: AppColors.sectionHeaderBg,
-                            actionLabel: StringConstants.viewAll,
-                            onActionTap: () => _openSection(
-                                context, const StoreScreen(), 'Store'),
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => _openSection(
-                                context, const StoreScreen(), 'Store'),
-                            child: _storeCard(data),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Gap(25),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.hrColor.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          SectionHeader(
-                            title: StringConstants.hr,
-                            accentColor: AppColors.sectionHeaderBg,
-                            actionLabel: StringConstants.viewAll,
-                            onActionTap: () =>
-                                _openSection(context, const HrScreen(), 'HR'),
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () =>
-                                _openSection(context, const HrScreen(), 'HR'),
-                            child: _simpleSectionTile(
-                              icon: Icons.groups_outlined,
-                              title: 'Attendance',
-                              subtitle: '10 present · 45 absent',
-                              accent: AppColors.hrColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Gap(25),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color:
-                            AppColors.restaurantColor.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          SectionHeader(
-                            title: StringConstants.restaurant,
-                            accentColor: AppColors.sectionHeaderBg,
-                            actionLabel: StringConstants.viewAll,
-                            onActionTap: () => _openSection(context,
-                                const RestaurantScreen(), 'Restaurant'),
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => _openSection(context,
-                                const RestaurantScreen(), 'Restaurant'),
-                            child: _simpleSectionTile(
-                              icon: Icons.restaurant_outlined,
-                              title: 'Restaurant',
-                              subtitle: '5 pax · ₹10.00 collected',
-                              accent: AppColors.restaurantColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Gap(25),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.labColor.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          SectionHeader(
-                            title: StringConstants.lab,
-                            accentColor: AppColors.sectionHeaderBg,
-                            actionLabel: StringConstants.viewAll,
-                            onActionTap: () =>
-                                _openSection(context, const LabScreen(), 'Lab'),
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () =>
-                                _openSection(context, const LabScreen(), 'Lab'),
-                            child: _simpleSectionTile(
-                              icon: Icons.science_outlined,
-                              title: 'Lab',
-                              subtitle: '8 tests · ₹20.00 collected',
-                              accent: AppColors.labColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Gap(25),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.barColor.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          SectionHeader(
-                            title: StringConstants.bar,
-                            accentColor: AppColors.sectionHeaderBg,
-                            actionLabel: StringConstants.viewAll,
-                            onActionTap: () =>
-                                _openSection(context, const BarScreen(), 'Bar'),
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () =>
-                                _openSection(context, const BarScreen(), 'Bar'),
-                            child: _simpleSectionTile(
-                              icon: Icons.local_bar_outlined,
-                              title: 'Bar',
-                              subtitle: '₹10.00 today',
-                              accent: AppColors.barColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Gap(25),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color:
-                            AppColors.frontofficeColor.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          SectionHeader(
-                            title: StringConstants.frontofficeFull,
-                            accentColor: AppColors.sectionHeaderBg,
-                            actionLabel: StringConstants.viewAll,
-                            onActionTap: () => _openSection(context,
-                                const FrontofficeScreen(), 'Frontoffice'),
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => _openSection(context,
-                                const FrontofficeScreen(), 'Frontoffice'),
-                            child: _simpleSectionTile(
-                              icon: Icons.meeting_room_outlined,
-                              title: 'Frontoffice',
-                              subtitle: '120 check-ins · ₹55,146 collected',
-                              accent: AppColors.frontofficeColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Gap(25),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.banquetColor.withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          SectionHeader(
-                            title: StringConstants.banquet,
-                            accentColor: AppColors.sectionHeaderBg,
-                            actionLabel: StringConstants.viewAll,
-                            onActionTap: () => _openSection(
-                                context, const BanquetScreen(), 'Banquet'),
-                          ),
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => _openSection(
-                                context, const BanquetScreen(), 'Banquet'),
-                            child: _simpleSectionTile(
-                              icon: Icons.celebration_outlined,
-                              title: 'Banquet',
-                              subtitle: '0 reservations · 0 functions',
-                              accent: AppColors.banquetColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                ],
               );
             },
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _simpleSectionTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color accent,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: accent, size: 20),
-          ),
-          const Gap(12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                KStyles().semiBold(
-                  text: title,
-                  size: 14,
-                  color: AppColors.textPrimary,
-                ),
-                const Gap(2),
-                KStyles().reg(
-                  text: subtitle,
-                  size: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ],
-            ),
-          ),
-          const Icon(
-            Icons.chevron_right,
-            size: 20,
-            color: AppColors.textMuted,
-          ),
-        ],
       ),
     );
   }
 
-  void _openSection(BuildContext context, Widget screen, String name) {
-    AppLogger.info(_tag, 'open section → $name');
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-    );
-  }
-
-  Widget _heroCard(data) {
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      gradient: const LinearGradient(
-        colors: AppColors.heroGradient,
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    KStyles().med(
-                      text: StringConstants.combinedRevenue,
-                      //size: 13,
-                      color: AppColors.white.withValues(alpha: 0.75),
-                    ),
-                    const Gap(4),
-                    KStyles().bold(
-                      text: '₹${data.combinedRevenue.toStringAsFixed(0)}',
-                      size: 28,
-                      color: AppColors.white,
-                    ),
-                    const Gap(4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.trending_up,
-                          size: 14,
-                          color: Color(0xFF34D399),
-                        ),
-                        const Gap(4),
-                        KStyles().med(
-                          text:
-                              '+${data.trendChangePercent}% ${StringConstants.vsLastWeek}',
-                          size: 12,
-                          color: const Color(0xFF34D399),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: KStyles().med(
-                  text: '7 days',
-                  size: 11,
-                  color: AppColors.white,
-                ),
-              ),
-            ],
-          ),
-          const Gap(14),
-          const Wrap(
-            spacing: 14, // gap between dots on the same row
-            runSpacing: 8, // gap between rows when they wrap
-            children: [
-              LegendDot(
-                color: AppColors.seriesAccounts,
-                label: 'Accounts',
-                textColor: Color(0xFFCBD5E1),
-              ),
-              LegendDot(
-                color: AppColors.seriesEmr,
-                label: 'EMR',
-                textColor: Color(0xFFCBD5E1),
-              ),
-              LegendDot(
-                color: AppColors.seriesStore,
-                label: 'Store',
-                textColor: Color(0xFFCBD5E1),
-              ),
-              LegendDot(
-                color: AppColors.seriesHr,
-                label: 'HR',
-                textColor: Color(0xFFCBD5E1),
-              ),
-              LegendDot(
-                color: AppColors.seriesRestaurant,
-                label: 'Restaurant',
-                textColor: Color(0xFFCBD5E1),
-              ),
-              LegendDot(
-                color: AppColors.seriesLab,
-                label: 'Lab',
-                textColor: Color(0xFFCBD5E1),
-              ),
-              LegendDot(
-                color: AppColors.seriesBar,
-                label: 'Bar',
-                textColor: Color(0xFFCBD5E1),
-              ),
-              LegendDot(
-                color: AppColors.seriesFrontoffice,
-                label: 'Frontoffice',
-                textColor: Color(0xFFCBD5E1),
-              ),
-              LegendDot(
-                color: AppColors.seriesBanquet,
-                label: 'Banquet',
-                textColor: Color(0xFFCBD5E1),
-              ),
-            ],
-          ),
-          const Gap(8),
-          Center(
-            child: SafeChartWrapper(
-              tag: 'home_stacked_area',
-              height: 180,
-              width: 350,
-              builder: () => StackedAreaChart(points: data.trend),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _accountsRow(data) {
-    return Row(
-      children: [
-        Expanded(
-          child: _miniCard(
-            label: StringConstants.receipts,
-            value: data.receipts.toStringAsFixed(2),
-            valueColor: AppColors.textPrimary,
-          ),
-        ),
-        const Gap(10),
-        Expanded(
-          child: _miniCard(
-            label: StringConstants.payments,
-            value: data.payments.toStringAsFixed(2),
-            valueColor: AppColors.textPrimary,
-          ),
-        ),
-        const Gap(10),
-        Expanded(
-          child: _miniCard(
-            label: StringConstants.crediters,
-            value: '−68.17 L',
-            valueColor: AppColors.emrColor,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _miniCard({
-    required String label,
-    required String value,
-    required Color valueColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      decoration: BoxDecoration(
-        color: AppColors.cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderColor),
-      ),
-      child: Column(
-        children: [
-          KStyles().med(
-            text: label,
-            // size: 11,
-            color: AppColors.textSecondary,
+  Widget _body(BuildContext context, DashboardState state, SectionTheme theme) {
+    if (state.status == DashboardStatus.loading || state.data == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
+    if (state.status == DashboardStatus.failure) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: KStyles().reg(
+            text: 'Failed to load: ${state.errorMessage ?? ''}',
+            size: 14,
+            color: Colors.redAccent,
             textAlign: TextAlign.center,
           ),
-          const Gap(6),
-          KStyles().semiBold(text: value, size: 15, color: valueColor),
-        ],
-      ),
-    );
-  }
-
-  Widget _emrCard(data) {
-    final genderSlices = <DonutSlice>[];
-    if (data.malePatients > 0) {
-      genderSlices.add(DonutSlice(
-        label: StringConstants.male,
-        value: data.malePatients.toDouble(),
-        color: AppColors.chartNavy,
-      ));
-    }
-    if (data.femalePatients > 0) {
-      genderSlices.add(DonutSlice(
-        label: StringConstants.female,
-        value: data.femalePatients.toDouble(),
-        color: AppColors.chartTeal,
-      ));
+        ),
+      );
     }
 
-    return AppCard(
-      padding: const EdgeInsets.all(14),
-      child: Row(
+    return RefreshIndicator(
+      onRefresh: () async {
+        AppLogger.info(_tag, 'pull-to-refresh');
+        context.read<DashboardBloc>().add(const DashboardRefreshed());
+      },
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          SafeChartWrapper(
-            tag: 'home_gender_donut',
-            height: 100,
-            builder: () => DonutChart(
-              slices: genderSlices,
-              centerText: data.currentPatients.toString(),
-              centerSubText: StringConstants.patients,
-              size: 90,
-            ),
-          ),
-          const Gap(16),
-          Expanded(
-            child: Column(
-              children: [
-                _genderRow(
-                  AppColors.chartNavy,
-                  StringConstants.male,
-                  data.malePatients.toString(),
-                ),
-                const Gap(4),
-                _genderRow(
-                  AppColors.chartTeal,
-                  StringConstants.female,
-                  data.femalePatients.toString(),
-                ),
-                const Gap(10),
-                Row(
-                  children: [
-                    _smallBadge('IP ${data.ipPatients}', AppColors.lmCoralBg,
-                        AppColors.lmCoralText),
-                    const Gap(8),
-                    _smallBadge('OP ${data.opPatients}', AppColors.lmAmberBg,
-                        AppColors.lmAmberText),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          _welcomeHero(theme),
+          const Gap(20),
+          _combinedRevenueChart(),
+          const Gap(20),
+          _departmentsHeader(),
+          const Gap(12),
+          ..._departmentTiles(context),
         ],
       ),
     );
   }
 
-  Widget _genderRow(Color dotColor, String label, String value) {
+  Widget _topBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Row(
         children: [
-          LegendDot(color: dotColor, label: label),
-          const Spacer(),
-          KStyles().semiBold(
-            text: value,
-            size: 13,
-            color: AppColors.textPrimary,
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.menu,
+                color: DashboardColors.textOnDark, size: 26),
+          ),
+          Expanded(
+            child: Center(
+              child: KStyles().bold(
+                text: StringConstants.dashboard,
+                size: 18,
+                color: DashboardColors.textOnDark,
+              ),
+            ),
+          ),
+          Stack(
+            children: [
+              IconButton(
+                onPressed: () {},
+                icon: const Icon(Icons.notifications_outlined,
+                    color: DashboardColors.textOnDark, size: 24),
+              ),
+              Positioned(
+                right: 10,
+                top: 10,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.redAccent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.person_outline,
+                color: DashboardColors.textOnDark, size: 24),
           ),
         ],
       ),
     );
   }
 
-  Widget _smallBadge(String text, Color bg, Color fg) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: KStyles().med(text: text, size: 11, color: fg),
+  Widget _welcomeHero(SectionTheme theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        KStyles().bold(
+          text: 'Welcome back!',
+          size: 26,
+          color: DashboardColors.textOnDark,
+        ),
+        const Gap(4),
+        KStyles().reg(
+          text: theme.subtitle,
+          size: 13,
+          color: DashboardColors.textOnDarkSecondary,
+        ),
+      ],
     );
   }
 
-  Widget _storeCard(data) {
-    return AppCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        children: [
-          Row(
+  Widget _combinedRevenueChart() {
+    // Sample 6-month combined revenue data. Move to a model field later
+    // once the dashboard repository returns monthly aggregates.
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+
+    const series = [
+      LineSeries(
+        name: 'EMR',
+        color: Color(0xFF4A8DFF),
+        values: [2300, 2900, 2700, 3200, 3700, 3900],
+      ),
+      LineSeries(
+        name: 'Accounts',
+        color: Color(0xFF2DD4A0),
+        values: [4000, 1500, 10000, 3900, 4800, 3900],
+      ),
+      LineSeries(
+        name: 'Store',
+        color: Color(0xFFB57BFF),
+        values: [2200, 1900, 2200, 2300, 2000, 2500],
+      ),
+      LineSeries(
+        name: 'Bar',
+        color: Color(0xFFFF8A3D),
+        values: [1900, 2100, 2200, 2300, 2500, 2700],
+      ),
+      LineSeries(
+        name: 'Lab',
+        color: Color(0xFFA78BFA),
+        values: [2400, 2100, 2400, 2300, 2400, 2600],
+      ),
+    ];
+
+    return const ChartCard(
+      title: 'Combined Revenue (Last 6 Months)',
+      child: MultiLineChart(
+        series: series,
+        xLabels: months,
+        height: 260,
+        yMax: 10500,
+      ),
+    );
+  }
+
+  Widget _departmentsHeader() {
+    return KStyles().semiBold(
+      text: StringConstants.department,
+      size: 14,
+      color: DashboardColors.textOnDark,
+    );
+  }
+
+  List<Widget> _departmentTiles(BuildContext context) {
+    return [
+      _DeptTile(
+        icon: Icons.monitor_heart_outlined,
+        iconColor: DashboardColors.iconBlue,
+        title: StringConstants.emr,
+        subtitle: '248 Patients',
+        revenue: '\$12,450',
+        onTap: () => _openEmr(context),
+      ),
+      _DeptTile(
+        icon: Icons.attach_money,
+        iconColor: DashboardColors.iconGreen,
+        title: StringConstants.accounts,
+        subtitle: '156 Invoices',
+        revenue: '\$45,230',
+        onTap: () => _openAccounts(context),
+      ),
+      _DeptTile(
+        icon: Icons.inventory_2_outlined,
+        iconColor: DashboardColors.iconPurple,
+        title: StringConstants.store,
+        subtitle: '1,234 Items',
+        revenue: '\$23,890',
+        onTap: () => _openStore(context),
+      ),
+      _DeptTile(
+        icon: Icons.local_bar_outlined,
+        iconColor: DashboardColors.iconOrange,
+        title: StringConstants.bar,
+        subtitle: '89 Products',
+        revenue: '\$8,650',
+        onTap: () => _openBar(context),
+      ),
+      _DeptTile(
+        icon: Icons.science_outlined,
+        iconColor: DashboardColors.iconPurple,
+        title: StringConstants.lab,
+        subtitle: '156 Tests',
+        revenue: '\$18,340',
+        onTap: () => _openLab(context),
+      ),
+      _DeptTile(
+        icon: Icons.celebration_outlined,
+        iconColor: DashboardColors.iconPink,
+        title: StringConstants.banquet,
+        subtitle: '115 Events',
+        revenue: '\$33,000',
+        onTap: () => _openBanquet(context),
+      ),
+      _DeptTile(
+        icon: Icons.restaurant_outlined,
+        iconColor: DashboardColors.iconAmber,
+        title: StringConstants.restaurant,
+        subtitle: '85 Orders',
+        revenue: '\$5,800',
+        onTap: () => _openRestaurant(context),
+      ),
+      _DeptTile(
+        icon: Icons.groups_outlined,
+        iconColor: DashboardColors.iconBlue,
+        title: StringConstants.hr,
+        subtitle: '342 Staff',
+        revenue: '\$24,500',
+        onTap: () => _openHr(context),
+      ),
+      _DeptTile(
+        icon: Icons.meeting_room_outlined,
+        iconColor: DashboardColors.iconTeal,
+        title: StringConstants.frontofficeFull,
+        subtitle: '156 Check-ins',
+        revenue: '\$8,200',
+        onTap: () => _openFrontoffice(context),
+      ),
+    ];
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // Section openers — each provides its own bloc from auto_injector
+  // and dispatches the initial load event.
+  // ─────────────────────────────────────────────────────────
+
+  void _openEmr(BuildContext c) {
+    AppLogger.info(_tag, 'open EMR');
+    Navigator.push(c, MaterialPageRoute(builder: (_) {
+      return BlocProvider(
+        create: (_) => autoInjector.get<EmrBloc>()..add(const EmrLoadRequested()),
+        child: const EmrScreen(),
+      );
+    }));
+  }
+
+  void _openAccounts(BuildContext c) {
+    AppLogger.info(_tag, 'open Accounts');
+    Navigator.push(c, MaterialPageRoute(builder: (_) {
+      return BlocProvider(
+        create: (_) =>
+            autoInjector.get<AccountsBloc>()..add(const AccountsLoadRequested()),
+        child: const AccountsScreen(),
+      );
+    }));
+  }
+
+  void _openStore(BuildContext c) {
+    AppLogger.info(_tag, 'open Store');
+    Navigator.push(c, MaterialPageRoute(builder: (_) {
+      return BlocProvider(
+        create: (_) =>
+            autoInjector.get<StoreBloc>()..add(const StoreLoadRequested()),
+        child: const StoreScreen(),
+      );
+    }));
+  }
+
+  void _openBar(BuildContext c) {
+    AppLogger.info(_tag, 'open Bar');
+    Navigator.push(c, MaterialPageRoute(builder: (_) {
+      return BlocProvider(
+        create: (_) => autoInjector.get<BarBloc>()..add(const BarLoadRequested()),
+        child: const BarScreen(),
+      );
+    }));
+  }
+
+  void _openLab(BuildContext c) {
+    AppLogger.info(_tag, 'open Lab');
+    Navigator.push(c, MaterialPageRoute(builder: (_) {
+      return BlocProvider(
+        create: (_) => autoInjector.get<LabBloc>()..add(const LabLoadRequested()),
+        child: const LabScreen(),
+      );
+    }));
+  }
+
+  void _openBanquet(BuildContext c) {
+    AppLogger.info(_tag, 'open Banquet');
+    Navigator.push(c, MaterialPageRoute(builder: (_) {
+      return BlocProvider(
+        create: (_) =>
+            autoInjector.get<BanquetBloc>()..add(const BanquetLoadRequested()),
+        child: const BanquetScreen(),
+      );
+    }));
+  }
+
+  void _openRestaurant(BuildContext c) {
+    AppLogger.info(_tag, 'open Restaurant');
+    Navigator.push(c, MaterialPageRoute(builder: (_) {
+      return BlocProvider(
+        create: (_) => autoInjector.get<RestaurantBloc>()
+          ..add(const RestaurantLoadRequested()),
+        child: const RestaurantScreen(),
+      );
+    }));
+  }
+
+  void _openHr(BuildContext c) {
+    AppLogger.info(_tag, 'open HR');
+    Navigator.push(c, MaterialPageRoute(builder: (_) {
+      return BlocProvider(
+        create: (_) => autoInjector.get<HrBloc>()..add(const HrLoadRequested()),
+        child: const HrScreen(),
+      );
+    }));
+  }
+
+  void _openFrontoffice(BuildContext c) {
+    AppLogger.info(_tag, 'open Frontoffice');
+    Navigator.push(c, MaterialPageRoute(builder: (_) {
+      return BlocProvider(
+        create: (_) => autoInjector.get<FrontofficeBloc>()
+          ..add(const FrontofficeLoadRequested()),
+        child: const FrontofficeScreen(),
+      );
+    }));
+  }
+}
+
+class _DeptTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final String revenue;
+  final VoidCallback onTap;
+
+  const _DeptTile({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.revenue,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: DashboardColors.statCardBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: DashboardColors.statCardBorder),
+          ),
+          child: Row(
             children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: iconColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: Colors.white),
+              ),
+              const Gap(12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    KStyles().med(
-                      text: StringConstants.totalCollection,
-                      // size: 11,
-                      color: AppColors.textSecondary,
+                    KStyles().semiBold(
+                      text: title,
+                      size: 14,
+                      color: DashboardColors.textOnDark,
                     ),
                     const Gap(2),
-                    KStyles().bold(
-                      text: '₹${data.totalCollection.toStringAsFixed(0)}',
-                      size: 22,
-                      color: AppColors.textPrimary,
+                    KStyles().reg(
+                      text: subtitle,
+                      size: 11,
+                      color: DashboardColors.textOnDarkMuted,
                     ),
                   ],
                 ),
               ),
-              SizedBox(
-                width: 80,
-                height: 36,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: List.generate(6, (i) {
-                    final heights = [16.0, 20.0, 24.0, 18.0, 28.0, 32.0];
-                    final opacity = 0.4 + i * 0.1;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                      child: Container(
-                        width: 8,
-                        height: heights[i],
-                        decoration: BoxDecoration(
-                          color:
-                              AppColors.storeColor.withValues(alpha: opacity),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    );
-                  }),
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  KStyles().bold(
+                    text: revenue,
+                    size: 14,
+                    color: DashboardColors.textOnDark,
+                  ),
+                  KStyles().reg(
+                    text: StringConstants.revenueLabel,
+                    size: 10,
+                    color: DashboardColors.textOnDarkMuted,
+                  ),
+                ],
               ),
+              const Gap(6),
+              const Icon(Icons.chevron_right,
+                  color: DashboardColors.textOnDarkMuted, size: 18),
             ],
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: Divider(
-              color: AppColors.borderColor,
-              height: 1,
-              thickness: 0.5,
-            ),
-          ),
-          Row(
-            children: [
-              _statTile('${data.storePurchase}', StringConstants.purchase),
-              _statTile('${data.storeRevenue}', StringConstants.revenue),
-              _statTile('${data.storeCollection}', StringConstants.collection),
-              _statTile('${data.storePayments}', StringConstants.payments),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statTile(String value, String label) {
-    return Expanded(
-      child: Column(
-        children: [
-          KStyles().semiBold(
-            text: value,
-            size: 14,
-            color: AppColors.textPrimary,
-          ),
-          const Gap(2),
-          KStyles().med(
-            text: label,
-            size: 12,
-            color: AppColors.textMuted,
-          ),
-        ],
+        ),
       ),
     );
   }

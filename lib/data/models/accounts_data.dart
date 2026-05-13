@@ -1,107 +1,82 @@
 import 'package:equatable/equatable.dart';
 
-class CashFlowPoint extends Equatable {
-  final String label;
-  final double receipts;
-  final double payments;
-
-  const CashFlowPoint({
-    required this.label,
-    required this.receipts,
-    required this.payments,
-  });
-
-  CashFlowPoint copyWith({String? label, double? receipts, double? payments}) {
-    return CashFlowPoint(
-      label: label ?? this.label,
-      receipts: receipts ?? this.receipts,
-      payments: payments ?? this.payments,
-    );
-  }
-
-  @override
-  List<Object?> get props => [label, receipts, payments];
-}
-
-class CollectionSlice extends Equatable {
-  final String mode; // Cheque, Cash, UPI
-  final double percent;
-
-  const CollectionSlice({required this.mode, required this.percent});
-
-  CollectionSlice copyWith({String? mode, double? percent}) {
-    return CollectionSlice(
-      mode: mode ?? this.mode,
-      percent: percent ?? this.percent,
-    );
-  }
-
-  @override
-  List<Object?> get props => [mode, percent];
-}
-
 class AccountsData extends Equatable {
-  final double netPosition;
-  final double debiters;
-  final double crediters;
-  final List<CashFlowPoint> cashFlow;
-  final int checkIn;
-  final int currentGuests;
-  final int expected;
-  final int checkOut;
-  final double totalCollection;
-  final List<CollectionSlice> collectionSlices;
+  final double totalRevenue;
+  final double expenses;
+  final double netProfit;
+  final double revenueTrendPercent;
+  final double expensesTrendPercent;
+  final double netProfitTrendPercent;
+  final List<MonthlyRevenuePoint> revenueVsExpenses;
+  final List<ExpenseSlice> expenseBreakdown;
 
   const AccountsData({
-    required this.netPosition,
-    required this.debiters,
-    required this.crediters,
-    required this.cashFlow,
-    required this.checkIn,
-    required this.currentGuests,
-    required this.expected,
-    required this.checkOut,
-    required this.totalCollection,
-    required this.collectionSlices,
+    required this.totalRevenue,
+    required this.expenses,
+    required this.netProfit,
+    required this.revenueTrendPercent,
+    required this.expensesTrendPercent,
+    required this.netProfitTrendPercent,
+    required this.revenueVsExpenses,
+    required this.expenseBreakdown,
   });
 
   AccountsData copyWith({
-    double? netPosition,
-    double? debiters,
-    double? crediters,
-    List<CashFlowPoint>? cashFlow,
-    int? checkIn,
-    int? currentGuests,
-    int? expected,
-    int? checkOut,
-    double? totalCollection,
-    List<CollectionSlice>? collectionSlices,
+    double? totalRevenue,
+    double? expenses,
+    double? netProfit,
+    double? revenueTrendPercent,
+    double? expensesTrendPercent,
+    double? netProfitTrendPercent,
+    List<MonthlyRevenuePoint>? revenueVsExpenses,
+    List<ExpenseSlice>? expenseBreakdown,
   }) {
     return AccountsData(
-      netPosition: netPosition ?? this.netPosition,
-      debiters: debiters ?? this.debiters,
-      crediters: crediters ?? this.crediters,
-      cashFlow: cashFlow ?? this.cashFlow,
-      checkIn: checkIn ?? this.checkIn,
-      currentGuests: currentGuests ?? this.currentGuests,
-      expected: expected ?? this.expected,
-      checkOut: checkOut ?? this.checkOut,
-      totalCollection: totalCollection ?? this.totalCollection,
-      collectionSlices: collectionSlices ?? this.collectionSlices,
+      totalRevenue: totalRevenue ?? this.totalRevenue,
+      expenses: expenses ?? this.expenses,
+      netProfit: netProfit ?? this.netProfit,
+      revenueTrendPercent: revenueTrendPercent ?? this.revenueTrendPercent,
+      expensesTrendPercent: expensesTrendPercent ?? this.expensesTrendPercent,
+      netProfitTrendPercent: netProfitTrendPercent ?? this.netProfitTrendPercent,
+      revenueVsExpenses: revenueVsExpenses ?? this.revenueVsExpenses,
+      expenseBreakdown: expenseBreakdown ?? this.expenseBreakdown,
     );
   }
 
   @override
   List<Object?> get props => [
-        netPosition,
-        debiters,
-        crediters,
-        cashFlow,
-        checkIn,
-        currentGuests,
-        expected,
-        checkOut,
-        totalCollection,
-        collectionSlices,
+        totalRevenue,
+        expenses,
+        netProfit,
+        revenueTrendPercent,
+        expensesTrendPercent,
+        netProfitTrendPercent,
+        revenueVsExpenses,
+        expenseBreakdown,
       ];
+}
+
+class MonthlyRevenuePoint extends Equatable {
+  final String month;
+  final double revenue;
+  final double expenses;
+
+  const MonthlyRevenuePoint({
+    required this.month,
+    required this.revenue,
+    required this.expenses,
+  });
+
+  @override
+  List<Object?> get props => [month, revenue, expenses];
+}
+
+class ExpenseSlice extends Equatable {
+  final String label;
+  final double amount;
+
+  const ExpenseSlice({required this.label, required this.amount});
+
+  @override
+  List<Object?> get props => [label, amount];
 }

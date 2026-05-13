@@ -1,5 +1,5 @@
-name: ayurlive_dashboard
-description: Ayurlive Dashboard Flutter App
+name: ayurliv_dashboard
+description: Ayurliv Dashboard Flutter App
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -11,13 +11,14 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
+  shared_preferences: ^2.3.2
 
   # State management
   flutter_bloc: ^8.1.6
   equatable: ^2.0.5
 
-  # Charts (Variant B)
-  graphic: ^2.7.0
+  # Charts — switched from graphic to fl_chart
+  fl_chart: ^0.69.0
 
   # Networking
   dio: ^5.7.0
@@ -34,13 +35,6 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.14.1
 
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/icons/app_icon.png"
-  adaptive_icon_background: "#FEF2F2"
-  adaptive_icon_foreground: "assets/icons/app_icon_foreground_1024.png"
-  adaptive_icon_monochrome: "assets/icons/app_icon_foreground_1024.png"
 flutter:
   uses-material-design: true
 

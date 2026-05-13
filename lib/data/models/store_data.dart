@@ -1,75 +1,62 @@
 import 'package:equatable/equatable.dart';
 
-class CategorySlice extends Equatable {
-  final String name; // Medicines / Surgical / Equipment
-  final double amount;
-  final double percent;
-
-  const CategorySlice({
-    required this.name,
-    required this.amount,
-    required this.percent,
-  });
-
-  CategorySlice copyWith({String? name, double? amount, double? percent}) {
-    return CategorySlice(
-      name: name ?? this.name,
-      amount: amount ?? this.amount,
-      percent: percent ?? this.percent,
-    );
-  }
-
-  @override
-  List<Object?> get props => [name, amount, percent];
-}
-
 class StoreData extends Equatable {
-  final double totalCollection;
-  final double trendChangePercent;
-  final double purchase;
-  final double revenue;
-  final double collection;
-  final double payments;
-  final List<CategorySlice> categories;
+  final int totalItems;
+  final int lowStock;
+  final int orders;
+  final List<CategoryInventory> inventoryByCategory;
+  final List<MonthlySalesPoint> monthlySales;
 
   const StoreData({
-    required this.totalCollection,
-    required this.trendChangePercent,
-    required this.purchase,
-    required this.revenue,
-    required this.collection,
-    required this.payments,
-    required this.categories,
+    required this.totalItems,
+    required this.lowStock,
+    required this.orders,
+    required this.inventoryByCategory,
+    required this.monthlySales,
   });
 
   StoreData copyWith({
-    double? totalCollection,
-    double? trendChangePercent,
-    double? purchase,
-    double? revenue,
-    double? collection,
-    double? payments,
-    List<CategorySlice>? categories,
+    int? totalItems,
+    int? lowStock,
+    int? orders,
+    List<CategoryInventory>? inventoryByCategory,
+    List<MonthlySalesPoint>? monthlySales,
   }) {
     return StoreData(
-      totalCollection: totalCollection ?? this.totalCollection,
-      trendChangePercent: trendChangePercent ?? this.trendChangePercent,
-      purchase: purchase ?? this.purchase,
-      revenue: revenue ?? this.revenue,
-      collection: collection ?? this.collection,
-      payments: payments ?? this.payments,
-      categories: categories ?? this.categories,
+      totalItems: totalItems ?? this.totalItems,
+      lowStock: lowStock ?? this.lowStock,
+      orders: orders ?? this.orders,
+      inventoryByCategory: inventoryByCategory ?? this.inventoryByCategory,
+      monthlySales: monthlySales ?? this.monthlySales,
     );
   }
 
   @override
-  List<Object?> get props => [
-        totalCollection,
-        trendChangePercent,
-        purchase,
-        revenue,
-        collection,
-        payments,
-        categories,
-      ];
+  List<Object?> get props =>
+      [totalItems, lowStock, orders, inventoryByCategory, monthlySales];
+}
+
+class CategoryInventory extends Equatable {
+  final String category;
+  final double inStock;
+  final double sold;
+
+  const CategoryInventory({
+    required this.category,
+    required this.inStock,
+    required this.sold,
+  });
+
+  @override
+  List<Object?> get props => [category, inStock, sold];
+}
+
+class MonthlySalesPoint extends Equatable {
+  final String month;
+  final double sales;
+
+  const MonthlySalesPoint({required this.month, required this.sales});
+
+  @override
+  List<Object?> get props => [month, sales];
 }

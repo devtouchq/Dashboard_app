@@ -2,32 +2,30 @@ import '../../core/network/dio_client.dart';
 import '../models/emr_data.dart';
 
 class EmrRepository {
+  // ignore: unused_field
   final DioClient _client;
 
   EmrRepository(this._client);
 
-  Future<EmrData> fetchEmr() async {
+  /// Real API: `await _client.dio.get('/emr/dashboard')`
+  /// For now we return mock data.
+  Future<EmrData> fetchDashboard() async {
     await Future.delayed(const Duration(milliseconds: 500));
-
     return const EmrData(
-      currentPatients: 581,
-      totalPatients: 581,
-      registration: 0,
-      consultation: 0,
-      bedsOccupied: 0,
-      malePatients: 452,
-      femalePatients: 129,
-      ipPatients: 0,
-      opPatients: 0,
-      newPatients: 0,
-      repeaterPatients: 0,
-      patientFlow: [
-        PatientFlowItem(label: 'Total', value: 581),
-        PatientFlowItem(label: 'IP', value: 0),
-        PatientFlowItem(label: 'OP', value: 0),
-        PatientFlowItem(label: 'New', value: 0),
-        PatientFlowItem(label: 'Repeat', value: 0),
+      totalPatients: 248,
+      appointments: 42,
+      activeCases: 18,
+      monthlyGrowth: [
+        MonthlyGrowthPoint(month: 'Jan', patients: 165),
+        MonthlyGrowthPoint(month: 'Feb', patients: 210),
+        MonthlyGrowthPoint(month: 'Mar', patients: 175),
+        MonthlyGrowthPoint(month: 'Apr', patients: 245),
+        MonthlyGrowthPoint(month: 'May', patients: 215),
+        MonthlyGrowthPoint(month: 'Jun', patients: 255),
       ],
+      outpatientCount: 156,
+      inpatientCount: 52,
+      emergencyCount: 40,
     );
   }
 }

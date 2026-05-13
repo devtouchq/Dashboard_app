@@ -1,145 +1,127 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 
-import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/section_theme.dart';
 import '../../../core/constants/string_constants.dart';
 import '../../../core/constants/text_styles.dart';
 import '../../../core/utils/app_logger.dart';
-import '../../widgets/app_card.dart';
-import '../../widgets/dashboard_app_bar.dart';
-import '../../widgets/metric_card.dart';
+import '../../blocs/restaurant/restaurant_bloc.dart';
+import '../../widgets/chart_card.dart';
+import '../../widgets/charts/pie_chart_widget.dart';
+import '../../widgets/charts/single_line_chart.dart';
+import '../../widgets/dashboard_scaffold.dart';
+import '../../widgets/stat_card.dart';
 
 class RestaurantScreen extends StatelessWidget {
   const RestaurantScreen({super.key});
 
   static const _tag = 'RestaurantScreen';
 
-  // Sample data — replace with bloc + repository when API is ready.
-  static const int _totalPax = 0;
-  static const double _totalCollection = 0.00;
-  static const int _runningTable = 0;
+  static const _pieColors = [
+    DashboardColors.iconAmber,
+    DashboardColors.iconTeal,
+    DashboardColors.iconPink,
+    DashboardColors.iconBlue,
+    DashboardColors.iconPurple,
+  ];
 
   @override
   Widget build(BuildContext context) {
     AppLogger.info(_tag, 'build()');
-    return Scaffold(
-      backgroundColor: AppColors.scaffoldBg,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            DashboardAppBar(
-              bgcolor: AppColors.restaurantColor.withValues(alpha: 0.1),
-              title: StringConstants.restaurant,
-              titleColor: AppColors.restaurantColor,
-              showBackButton: true,
-              onBack: () => Navigator.pop(context),
-              actions: [
-                AppBarIconButton(
-                  icon: Icons.notifications_outlined,
-                  onTap: () {},
-                ),
-              ],
+    return BlocConsumer<RestaurantBloc, RestaurantState>(
+      listener: (context, state) {
+        AppLogger.info(_tag, 'state changed: ${state.status}');
+        if (state.status == RestaurantStatus.failure) {
+          AppLogger.error(
+              _tag, 'Restaurant load failed: ${state.errorMessage}');
+        }
+      },
+      builder: (context, state) {
+        return DashboardScaffold(
+          theme: SectionTheme.restaurant,
+          title: StringConstants.restaurantDashboard,
+          children: [_body(state)],
+        );
+      },
+    );
+  }
+
+  Widget _body(RestaurantState state) {
+    if (state.status == RestaurantStatus.loading || state.data == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 80),
+        child: Center(child: CircularProgressIndicator(color: Colors.white)),
+      );
+    }
+    if (state.status == RestaurantStatus.failure) {
+      return _errorView(state.errorMessage);
+    }
+
+    final data = state.data!;
+    return Column(
+      children: [
+        StatCardRow(
+          cards: [
+            StatCard(
+              icon: Icons.restaurant_outlined,
+              iconColor: DashboardColors.iconOrange,
+              value: '${data.dailyOrders}',
+              label: StringConstants.dailyOrders,
             ),
-            const Gap(50),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
-                children: [
-                  _metricsGrid(),
-                  _totalCollectionCard(),
-                ],
-              ),
+            StatCard(
+              icon: Icons.people_alt_outlined,
+              iconColor: DashboardColors.iconBlue,
+              value: '${data.customers}',
+              label: StringConstants.customers,
+            ),
+            StatCard(
+              icon: Icons.attach_money,
+              iconColor: DashboardColors.iconGreen,
+              value: '\$${(data.revenue / 1000).toStringAsFixed(1)}k',
+              label: StringConstants.revenueLabel,
             ),
           ],
         ),
-      ),
+        const Gap(16),
+        ChartCard(
+          title: StringConstants.weeklySales,
+          child: SingleLineChart(
+            values: data.weeklySales.map((p) => p.sales).toList(),
+            xLabels: data.weeklySales.map((p) => p.day).toList(),
+            lineColor: const Color(0xFFE89F2C),
+            fillBelow: true,
+            height: 220,
+          ),
+        ),
+        const Gap(16),
+        ChartCard(
+          title: StringConstants.salesByCategory,
+          child: PieChartWidget(
+            slices: List.generate(
+              data.salesByCategory.length,
+              (i) => PieSlice(
+                label: data.salesByCategory[i].label,
+                value: data.salesByCategory[i].percent,
+                color: _pieColors[i % _pieColors.length],
+              ),
+            ),
+            size: 180,
+            showLegendValues: false,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _metricsGrid() {
+  Widget _errorView(String? msg) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GridView.count(
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1.5,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        children: const [
-          MetricCard(
-            icon: Icons.people_alt_outlined,
-            label: StringConstants.totalPax,
-            value: '$_totalPax',
-            gradient: AppColors.roseGradient,
-          ),
-          MetricCard(
-            icon: Icons.receipt_long_outlined,
-            label: StringConstants.totalRevenue,
-            value: '0.00',
-            gradient: AppColors.navyGradient,
-          ),
-          MetricCard(
-            icon: Icons.account_balance_wallet_outlined,
-            label: StringConstants.totalCollection,
-            value: '0.00',
-            gradient: AppColors.amberGradient,
-          ),
-          MetricCard(
-            icon: Icons.table_restaurant_outlined,
-            label: StringConstants.runningTable,
-            value: '$_runningTable',
-            gradient: AppColors.accountsGradient,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _totalCollectionCard() {
-    return AppCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const CardTitleRow(
-            title: StringConstants.totalCollection,
-            pillText: StringConstants.today,
-          ),
-          // Empty-state placeholder — wire chart in once you have data.
-          Container(
-            height: 160,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.scaffoldBg,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.borderColor),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.bar_chart_outlined,
-                  size: 28,
-                  color: AppColors.textMuted,
-                ),
-                const Gap(6),
-                KStyles().reg(
-                  text: '₹${_totalCollection.toStringAsFixed(2)}',
-                  size: 14,
-                  color: AppColors.textSecondary,
-                ),
-                const Gap(2),
-                KStyles().reg(
-                  text: 'No collection yet today',
-                  size: 11,
-                  color: AppColors.textMuted,
-                ),
-              ],
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 16),
+      child: KStyles().reg(
+        text: 'Failed to load Restaurant data\n${msg ?? ''}',
+        size: 13,
+        color: Colors.redAccent,
+        textAlign: TextAlign.center,
       ),
     );
   }
