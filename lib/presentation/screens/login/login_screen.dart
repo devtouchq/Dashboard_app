@@ -125,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = SectionTheme.home;
+    const theme = SectionTheme.home;
 
     return Scaffold(
       backgroundColor: theme.backgroundGradient[0],
@@ -209,7 +209,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 label: StringConstants.accountId,
                                 hint: StringConstants.accountIdHint,
                                 icon: Icons.badge_outlined,
-                                keyboardType: TextInputType.text,
+                                keyboardType: TextInputType.number,
                                 validator: (v) =>
                                     (v == null || v.trim().isEmpty)
                                         ? StringConstants.accountIdRequired
@@ -302,31 +302,29 @@ class _LoginScreenState extends State<LoginScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          ),
-          child: Icon(
-            Icons.lock_outlined,
-            color: theme.accentSoft,
-            size: 28,
+        Center(
+          child: Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+            ),
+            child: Icon(
+              Icons.lock_outlined,
+              color: theme.accentSoft,
+              size: 28,
+            ),
           ),
         ),
         const Gap(20),
-        KStyles().bold(
-          text: StringConstants.welcomeBackTitle,
-          size: 28,
-          color: DashboardColors.textOnDark,
-        ),
-        const Gap(4),
-        KStyles().reg(
-          text: StringConstants.signInToContinue,
-          size: 13,
-          color: DashboardColors.textOnDarkSecondary,
+        Center(
+          child: KStyles().bold(
+            text: StringConstants.logintext,
+            size: 28,
+            color: DashboardColors.textOnDark,
+          ),
         ),
         const Gap(6),
         InkWell(

@@ -79,7 +79,7 @@ class KStyles {
   //!-------------(med)-------------------
   Text med({
     required String text,
-    Color color = AppColors.black,
+    Color? color,
     double? height,
     bool? softWrap,
     double? size,
@@ -104,7 +104,7 @@ class KStyles {
         decorationThickness: decorationThickness,
         fontSize: size ?? 15,
         height: height,
-        color: color,
+        color: color ?? AppColors.black,
         fontFamily: FontConst().fontFamily,
         fontWeight: FontConst().mediumFont,
         overflow: overflow ?? TextOverflow.visible,

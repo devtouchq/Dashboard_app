@@ -3,13 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 
 import '../../../core/constants/section_theme.dart';
-import '../../../core/constants/string_constants.dart';
-import '../../../core/constants/text_styles.dart';
 import '../../../core/utils/app_logger.dart';
-import '../../blocs/restaurant/restaurant_bloc.dart';
+import '../../../core/utils/currency_utils.dart';
+import '../../../data/models/dashboard_data.dart';
+import '../../blocs/dashboard/dashboard_bloc.dart';
 import '../../widgets/chart_card.dart';
-import '../../widgets/charts/pie_chart_widget.dart';
-import '../../widgets/charts/single_line_chart.dart';
+import '../../widgets/charts/bar_chart_widget.dart';
 import '../../widgets/dashboard_scaffold.dart';
 import '../../widgets/stat_card.dart';
 
@@ -18,111 +17,73 @@ class RestaurantScreen extends StatelessWidget {
 
   static const _tag = 'RestaurantScreen';
 
-  static const _pieColors = [
-    DashboardColors.iconAmber,
-    DashboardColors.iconTeal,
-    DashboardColors.iconPink,
-    DashboardColors.iconBlue,
-    DashboardColors.iconPurple,
-  ];
-
   @override
   Widget build(BuildContext context) {
     AppLogger.info(_tag, 'build()');
-    return BlocConsumer<RestaurantBloc, RestaurantState>(
-      listener: (context, state) {
-        AppLogger.info(_tag, 'state changed: ${state.status}');
-        if (state.status == RestaurantStatus.failure) {
-          AppLogger.error(
-              _tag, 'Restaurant load failed: ${state.errorMessage}');
-        }
-      },
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      buildWhen: (a, b) =>
+          a.data?.restaurant != b.data?.restaurant ||
+          a.data?.currency != b.data?.currency,
       builder: (context, state) {
+        final data = state.data?.restaurant;
+        final currency = state.data?.currency.defaultCurrency ?? 'INR';
         return DashboardScaffold(
           theme: SectionTheme.restaurant,
-          title: StringConstants.restaurantDashboard,
-          children: [_body(state)],
+          title: 'Restaurant Dashboard',
+          children: data == null
+              ? [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 80),
+                    child: Center(
+                        child: CircularProgressIndicator(color: Colors.white)),
+                  )
+                ]
+              : [_content(data, currency)],
         );
       },
     );
   }
 
-  Widget _body(RestaurantState state) {
-    if (state.status == RestaurantStatus.loading || state.data == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 80),
-        child: Center(child: CircularProgressIndicator(color: Colors.white)),
-      );
-    }
-    if (state.status == RestaurantStatus.failure) {
-      return _errorView(state.errorMessage);
-    }
-
-    final data = state.data!;
+  Widget _content(RestaurantData data, String currency) {
     return Column(
       children: [
         StatCardRow(
           cards: [
             StatCard(
-              icon: Icons.restaurant_outlined,
+              icon: Icons.people_alt_outlined,
               iconColor: DashboardColors.iconOrange,
-              value: '${data.dailyOrders}',
-              label: StringConstants.dailyOrders,
+              value: '${data.totalPax.toInt()}',
+              label: 'Total Pax',
             ),
             StatCard(
-              icon: Icons.people_alt_outlined,
+              icon: Icons.table_restaurant_outlined,
               iconColor: DashboardColors.iconBlue,
-              value: '${data.customers}',
-              label: StringConstants.customers,
+              value: '${data.runningTableCount.toInt()}',
+              label: 'Running Tables',
             ),
             StatCard(
               icon: Icons.attach_money,
               iconColor: DashboardColors.iconGreen,
-              value: '\$${(data.revenue / 1000).toStringAsFixed(1)}k',
-              label: StringConstants.revenueLabel,
+              value: CurrencyUtils.format(data.totalRevenue, currency),
+              label: 'Revenue',
             ),
           ],
         ),
         const Gap(16),
         ChartCard(
-          title: StringConstants.weeklySales,
-          child: SingleLineChart(
-            values: data.weeklySales.map((p) => p.sales).toList(),
-            xLabels: data.weeklySales.map((p) => p.day).toList(),
-            lineColor: const Color(0xFFE89F2C),
-            fillBelow: true,
-            height: 220,
-          ),
-        ),
-        const Gap(16),
-        ChartCard(
-          title: StringConstants.salesByCategory,
-          child: PieChartWidget(
-            slices: List.generate(
-              data.salesByCategory.length,
-              (i) => PieSlice(
-                label: data.salesByCategory[i].label,
-                value: data.salesByCategory[i].percent,
-                color: _pieColors[i % _pieColors.length],
-              ),
-            ),
-            size: 180,
-            showLegendValues: false,
+          title: 'Revenue vs Collection',
+          child: BarChartWidget(
+            groups: [
+              BarGroup(label: 'Revenue', values: [data.totalRevenue.abs()]),
+              BarGroup(
+                  label: 'Collection', values: [data.totalCollection.abs()]),
+            ],
+            barColors: const [Color(0xFFE89F2C)],
+            barWidth: 40,
+            height: 200,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _errorView(String? msg) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 16),
-      child: KStyles().reg(
-        text: 'Failed to load Restaurant data\n${msg ?? ''}',
-        size: 13,
-        color: Colors.redAccent,
-        textAlign: TextAlign.center,
-      ),
     );
   }
 }

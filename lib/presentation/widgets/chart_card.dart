@@ -7,16 +7,16 @@ import '../../core/constants/text_styles.dart';
 /// Glassy container holding a chart with a title at the top.
 /// Every chart in every dashboard sits inside one of these.
 class ChartCard extends StatelessWidget {
-  final String title;
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-
   const ChartCard({
     super.key,
     required this.title,
     required this.child,
     this.padding = const EdgeInsets.all(14),
   });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +26,13 @@ class ChartCard extends StatelessWidget {
         color: DashboardColors.statCardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: DashboardColors.statCardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black87.withOpacity(0.4),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

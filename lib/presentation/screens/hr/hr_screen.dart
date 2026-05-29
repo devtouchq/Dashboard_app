@@ -3,12 +3,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 
 import '../../../core/constants/section_theme.dart';
-import '../../../core/constants/string_constants.dart';
 import '../../../core/constants/text_styles.dart';
 import '../../../core/utils/app_logger.dart';
-import '../../blocs/hr/hr_bloc.dart';
+import '../../../data/models/dashboard_data.dart';
+import '../../blocs/dashboard/dashboard_bloc.dart';
 import '../../widgets/chart_card.dart';
-import '../../widgets/charts/bar_chart_widget.dart';
 import '../../widgets/charts/pie_chart_widget.dart';
 import '../../widgets/dashboard_scaffold.dart';
 import '../../widgets/stat_card.dart';
@@ -18,45 +17,32 @@ class HrScreen extends StatelessWidget {
 
   static const _tag = 'HrScreen';
 
-  static const _pieColors = [
-    DashboardColors.iconBlue,
-    DashboardColors.iconGreen,
-    DashboardColors.iconAmber,
-    DashboardColors.iconPurple,
-  ];
-
   @override
   Widget build(BuildContext context) {
     AppLogger.info(_tag, 'build()');
-    return BlocConsumer<HrBloc, HrState>(
-      listener: (context, state) {
-        AppLogger.info(_tag, 'state changed: ${state.status}');
-        if (state.status == HrStatus.failure) {
-          AppLogger.error(_tag, 'HR load failed: ${state.errorMessage}');
-        }
-      },
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      buildWhen: (a, b) => a.data?.hr != b.data?.hr,
       builder: (context, state) {
+        final data = state.data?.hr;
         return DashboardScaffold(
           theme: SectionTheme.hr,
-          title: StringConstants.hrDashboard,
-          children: [_body(state)],
+          title: 'HR Dashboard',
+          children: data == null
+              ? [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 80),
+                    child: Center(
+                        child: CircularProgressIndicator(color: Colors.white)),
+                  )
+                ]
+              : [_content(data)],
         );
       },
     );
   }
 
-  Widget _body(HrState state) {
-    if (state.status == HrStatus.loading || state.data == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 80),
-        child: Center(child: CircularProgressIndicator(color: Colors.white)),
-      );
-    }
-    if (state.status == HrStatus.failure) {
-      return _errorView(state.errorMessage);
-    }
-
-    final data = state.data!;
+  Widget _content(HrData data) {
+    final total = data.totalPresent + data.totalAbsent;
     return Column(
       children: [
         StatCardRow(
@@ -64,71 +50,52 @@ class HrScreen extends StatelessWidget {
             StatCard(
               icon: Icons.groups_outlined,
               iconColor: DashboardColors.iconBlue,
-              value: '${data.totalStaff}',
-              label: StringConstants.totalStaff,
+              value: '$total',
+              label: 'Total Staff',
             ),
             StatCard(
               icon: Icons.person_outline,
               iconColor: DashboardColors.iconGreen,
-              value: '${data.present}',
-              label: StringConstants.present,
+              value: '${data.totalPresent}',
+              label: 'Present',
             ),
             StatCard(
               icon: Icons.person_off_outlined,
               iconColor: DashboardColors.iconOrange,
-              value: '${data.onLeave}',
-              label: StringConstants.onLeave,
+              value: '${data.totalAbsent}',
+              label: 'Absent',
             ),
           ],
         ),
         const Gap(16),
         ChartCard(
-          title: StringConstants.attendanceRate,
-          child: BarChartWidget(
-            groups: data.attendanceRate
-                .map((p) => BarGroup(
-                      label: p.month,
-                      values: [p.presentPercent, p.absentPercent],
-                    ))
-                .toList(),
-            barColors: const [
-              Color(0xFF2DD4A0),
-              Color(0xFFEF4444),
+          title: 'Attendance',
+          child: PieChartWidget(
+            slices: [
+              PieSlice(
+                label: 'Present',
+                value: data.totalPresent.toDouble(),
+                color: DashboardColors.iconGreen,
+              ),
+              PieSlice(
+                label: 'Absent',
+                value: data.totalAbsent.toDouble(),
+                color: DashboardColors.iconRed,
+              ),
             ],
-            barWidth: 10,
-            yMax: 100,
-            height: 220,
+            size: 180,
+            showPercentLabels: true,
           ),
         ),
-        const Gap(16),
-        ChartCard(
-          title: StringConstants.staffByDepartment,
-          child: PieChartWidget(
-            slices: List.generate(
-              data.staffByDepartment.length,
-              (i) => PieSlice(
-                label: data.staffByDepartment[i].label,
-                value: data.staffByDepartment[i].percent,
-                color: _pieColors[i % _pieColors.length],
-              ),
-            ),
-            size: 180,
-            showLegendValues: false,
+        const Gap(12),
+        Center(
+          child: KStyles().reg(
+            text: 'Last synced: ${data.lastSyncedTime}',
+            size: 11,
+            color: DashboardColors.textOnDarkMuted,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _errorView(String? msg) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 16),
-      child: KStyles().reg(
-        text: 'Failed to load HR data\n${msg ?? ''}',
-        size: 13,
-        color: Colors.redAccent,
-        textAlign: TextAlign.center,
-      ),
     );
   }
 }

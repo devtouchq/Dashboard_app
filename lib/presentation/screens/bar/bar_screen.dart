@@ -3,13 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 
 import '../../../core/constants/section_theme.dart';
-import '../../../core/constants/string_constants.dart';
-import '../../../core/constants/text_styles.dart';
 import '../../../core/utils/app_logger.dart';
-import '../../blocs/bar/bar_bloc.dart';
+import '../../../core/utils/currency_utils.dart';
+import '../../../data/models/dashboard_data.dart';
+import '../../blocs/dashboard/dashboard_bloc.dart';
 import '../../widgets/chart_card.dart';
 import '../../widgets/charts/bar_chart_widget.dart';
-import '../../widgets/charts/pie_chart_widget.dart';
 import '../../widgets/dashboard_scaffold.dart';
 import '../../widgets/stat_card.dart';
 
@@ -18,110 +17,66 @@ class BarScreen extends StatelessWidget {
 
   static const _tag = 'BarScreen';
 
-  static const _pieColors = [
-    DashboardColors.iconAmber,
-    DashboardColors.iconRed,
-    DashboardColors.iconPurple,
-    DashboardColors.iconPink,
-    DashboardColors.iconTeal,
-  ];
-
   @override
   Widget build(BuildContext context) {
     AppLogger.info(_tag, 'build()');
-    return BlocConsumer<BarBloc, BarState>(
-      listener: (context, state) {
-        AppLogger.info(_tag, 'state changed: ${state.status}');
-        if (state.status == BarStatus.failure) {
-          AppLogger.error(_tag, 'Bar load failed: ${state.errorMessage}');
-        }
-      },
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      buildWhen: (a, b) =>
+          a.data?.bar != b.data?.bar || a.data?.currency != b.data?.currency,
       builder: (context, state) {
+        final data = state.data?.bar;
+        final currency = state.data?.currency.defaultCurrency ?? 'INR';
         return DashboardScaffold(
           theme: SectionTheme.bar,
-          title: StringConstants.barDashboard,
-          children: [_body(state)],
+          title: 'Bar Dashboard',
+          children: data == null
+              ? [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 80),
+                    child: Center(
+                        child: CircularProgressIndicator(color: Colors.white)),
+                  )
+                ]
+              : [_content(data, currency)],
         );
       },
     );
   }
 
-  Widget _body(BarState state) {
-    if (state.status == BarStatus.loading || state.data == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 80),
-        child: Center(child: CircularProgressIndicator(color: Colors.white)),
-      );
-    }
-    if (state.status == BarStatus.failure) {
-      return _errorView(state.errorMessage);
-    }
-
-    final data = state.data!;
+  Widget _content(BarData data, String currency) {
     return Column(
       children: [
         StatCardRow(
           cards: [
             StatCard(
-              icon: Icons.local_bar_outlined,
-              iconColor: DashboardColors.iconOrange,
-              value: '${data.totalProducts}',
-              label: StringConstants.totalProducts,
-            ),
-            StatCard(
               icon: Icons.attach_money,
-              iconColor: DashboardColors.iconTeal,
-              value: '\$${data.dailySales.toStringAsFixed(0)}',
-              label: StringConstants.dailySales,
+              iconColor: DashboardColors.iconOrange,
+              value: CurrencyUtils.format(data.totalRevenue, currency),
+              label: 'Revenue',
             ),
             StatCard(
-              icon: Icons.receipt_long_outlined,
-              iconColor: DashboardColors.iconPink,
-              value: '${data.orders}',
-              label: StringConstants.orders,
+              icon: Icons.payments_outlined,
+              iconColor: DashboardColors.iconTeal,
+              value: CurrencyUtils.format(data.totalCollection, currency),
+              label: 'Collection',
             ),
           ],
         ),
         const Gap(16),
         ChartCard(
-          title: StringConstants.weeklyRevenue,
+          title: 'Revenue vs Collection',
           child: BarChartWidget(
-            groups: data.weeklyRevenue
-                .map((p) => BarGroup(label: p.day, values: [p.revenue]))
-                .toList(),
+            groups: [
+              BarGroup(label: 'Revenue', values: [data.totalRevenue.abs()]),
+              BarGroup(
+                  label: 'Collection', values: [data.totalCollection.abs()]),
+            ],
             barColors: const [Color(0xFFFF8A3D)],
-            barWidth: 16,
-          ),
-        ),
-        const Gap(16),
-        ChartCard(
-          title: StringConstants.productMix,
-          child: PieChartWidget(
-            slices: List.generate(
-              data.productMix.length,
-              (i) => PieSlice(
-                label: data.productMix[i].label,
-                value: data.productMix[i].percent,
-                color: _pieColors[i % _pieColors.length],
-              ),
-            ),
-            size: 180,
-            showLegendValues: false,
+            barWidth: 40,
+            height: 200,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _errorView(String? msg) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 16),
-      child: KStyles().reg(
-        text: 'Failed to load Bar data\n${msg ?? ''}',
-        size: 13,
-        color: Colors.redAccent,
-        textAlign: TextAlign.center,
-      ),
     );
   }
 }

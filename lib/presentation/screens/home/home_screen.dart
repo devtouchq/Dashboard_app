@@ -5,20 +5,12 @@ import 'package:gap/gap.dart';
 import '../../../core/constants/section_theme.dart';
 import '../../../core/constants/string_constants.dart';
 import '../../../core/constants/text_styles.dart';
-import '../../../core/di/injector.dart';
 import '../../../core/utils/app_logger.dart';
-import '../../blocs/accounts/accounts_bloc.dart';
-import '../../blocs/banquet/banquet_bloc.dart';
-import '../../blocs/bar/bar_bloc.dart';
+import '../../../core/utils/currency_utils.dart';
+import '../../../data/models/dashboard_data.dart';
 import '../../blocs/dashboard/dashboard_bloc.dart';
-import '../../blocs/emr/emr_bloc.dart';
-import '../../blocs/frontoffice/frontoffice_bloc.dart';
-import '../../blocs/hr/hr_bloc.dart';
-import '../../blocs/lab/lab_bloc.dart';
-import '../../blocs/restaurant/restaurant_bloc.dart';
-import '../../blocs/store/store_bloc.dart';
 import '../../widgets/chart_card.dart';
-import '../../widgets/charts/multi_line_chart.dart';
+import '../../widgets/charts/bar_chart_widget.dart';
 import '../accounts/accounts_screen.dart';
 import '../banquet/banquet_screen.dart';
 import '../bar/bar_screen.dart';
@@ -29,16 +21,52 @@ import '../lab/lab_screen.dart';
 import '../restaurant/restaurant_screen.dart';
 import '../store/store_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static const _tag = 'HomeScreen';
+  static const _colorRevenue = Color(0xFF4ADE80);
+
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.info(_tag, 'initState — start polling');
+    WidgetsBinding.instance.addObserver(this);
+    context.read<DashboardBloc>().add(
+          const DashboardPollingStarted(interval: Duration(seconds: 5)),
+        );
+  }
+
+  @override
+  void dispose() {
+    AppLogger.info(_tag, 'dispose — stop polling');
+    WidgetsBinding.instance.removeObserver(this);
+    try {
+      context.read<DashboardBloc>().add(const DashboardPollingStopped());
+    } catch (_) {}
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      context.read<DashboardBloc>().add(const DashboardPollingStopped());
+    } else if (state == AppLifecycleState.resumed) {
+      context.read<DashboardBloc>().add(
+            const DashboardPollingStarted(interval: Duration(seconds: 5)),
+          );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    AppLogger.info(_tag, 'build()');
     final theme = SectionTheme.home;
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: theme.backgroundGradient[0],
@@ -52,21 +80,12 @@ class HomeScreen extends StatelessWidget {
         ),
         child: SafeArea(
           bottom: false,
-          child: BlocConsumer<DashboardBloc, DashboardState>(
-            listener: (context, state) {
-              AppLogger.info(_tag, 'state changed: ${state.status}');
-              if (state.status == DashboardStatus.failure) {
-                AppLogger.error(_tag,
-                    'Dashboard load failed: ${state.errorMessage}');
-              }
-            },
+          child: BlocBuilder<DashboardBloc, DashboardState>(
             builder: (context, state) {
               return Column(
                 children: [
-                  _topBar(),
-                  Expanded(
-                    child: _body(context, state, theme),
-                  ),
+                  _topBar(state),
+                  Expanded(child: _body(context, state, theme)),
                 ],
               );
             },
@@ -77,46 +96,67 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _body(BuildContext context, DashboardState state, SectionTheme theme) {
-    if (state.status == DashboardStatus.loading || state.data == null) {
+    if (state.data == null) {
+      if (state.status == DashboardStatus.failure) {
+        return _errorView(context, state);
+      }
       return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      );
+          child: CircularProgressIndicator(color: Colors.white));
     }
-    if (state.status == DashboardStatus.failure) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: KStyles().reg(
-            text: 'Failed to load: ${state.errorMessage ?? ''}',
-            size: 14,
-            color: Colors.redAccent,
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-
+    final data = state.data!;
+    final currency = data.currency.defaultCurrency;
     return RefreshIndicator(
       onRefresh: () async {
-        AppLogger.info(_tag, 'pull-to-refresh');
         context.read<DashboardBloc>().add(const DashboardRefreshed());
+        await Future.delayed(const Duration(milliseconds: 600));
       },
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          _welcomeHero(theme),
+          _welcomeHero(theme, currency),
           const Gap(20),
-          _combinedRevenueChart(),
-          const Gap(20),
+          _revenueChart(data.overview),
+          const Gap(14),
+          _summaryCard(data.overview, currency),
+          const Gap(22),
           _departmentsHeader(),
           const Gap(12),
-          ..._departmentTiles(context),
+          ..._departmentTiles(context, data, currency),
         ],
       ),
     );
   }
 
-  Widget _topBar() {
+  Widget _errorView(BuildContext context, DashboardState state) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, color: Colors.white54, size: 40),
+            const Gap(12),
+            KStyles().reg(
+              text: 'Failed to load\n${state.errorMessage ?? ''}',
+              size: 13,
+              color: Colors.redAccent,
+              textAlign: TextAlign.center,
+            ),
+            const Gap(16),
+            ElevatedButton(
+              onPressed: () => context
+                  .read<DashboardBloc>()
+                  .add(const DashboardLoadRequested()),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _topBar(DashboardState state) {
+    final currency = state.data?.currency.defaultCurrency ?? 'INR';
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Row(
@@ -128,33 +168,36 @@ class HomeScreen extends StatelessWidget {
           ),
           Expanded(
             child: Center(
-              child: KStyles().bold(
-                text: StringConstants.dashboard,
-                size: 18,
-                color: DashboardColors.textOnDark,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  KStyles().bold(
+                    text: StringConstants.dashboard,
+                    size: 18,
+                    color: DashboardColors.textOnDark,
+                  ),
+                  const Gap(8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: KStyles().semiBold(
+                      text: '${CurrencyUtils.symbol(currency)} $currency',
+                      size: 10,
+                      color: DashboardColors.textOnDarkSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          Stack(
-            children: [
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.notifications_outlined,
-                    color: DashboardColors.textOnDark, size: 24),
-              ),
-              Positioned(
-                right: 10,
-                top: 10,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.redAccent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.notifications_outlined,
+                color: DashboardColors.textOnDark, size: 24),
           ),
           IconButton(
             onPressed: () {},
@@ -166,7 +209,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _welcomeHero(SectionTheme theme) {
+  Widget _welcomeHero(SectionTheme theme, String currency) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -177,54 +220,71 @@ class HomeScreen extends StatelessWidget {
         ),
         const Gap(4),
         KStyles().reg(
-          text: theme.subtitle,
-          size: 13,
+          text: '${theme.subtitle} · ${CurrencyUtils.name(currency)}',
+          size: 12,
           color: DashboardColors.textOnDarkSecondary,
         ),
       ],
     );
   }
 
-  Widget _combinedRevenueChart() {
-    // Sample 6-month combined revenue data. Move to a model field later
-    // once the dashboard repository returns monthly aggregates.
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+  Widget _revenueChart(OverviewData overview) {
+    final sections = overview.sectionsDaily;
+    return ChartCard(
+      title: "Today's Revenue by Section",
+      child: BarChartWidget(
+        groups: sections
+            .map((s) => BarGroup(label: s.name, values: [s.totalRevenue]))
+            .toList(),
+        barColors: const [_colorRevenue],
+        barWidth: 9,
+        height: 280,
+        rotateLabels: -0.5,
+      ),
+    );
+  }
 
-    const series = [
-      LineSeries(
-        name: 'EMR',
-        color: Color(0xFF4A8DFF),
-        values: [2300, 2900, 2700, 3200, 3700, 3900],
+  Widget _summaryCard(OverviewData overview, String currency) {
+    final revenue = overview.totalRevenue;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: DashboardColors.statCardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: DashboardColors.statCardBorder),
       ),
-      LineSeries(
-        name: 'Accounts',
-        color: Color(0xFF2DD4A0),
-        values: [4000, 1500, 10000, 3900, 4800, 3900],
-      ),
-      LineSeries(
-        name: 'Store',
-        color: Color(0xFFB57BFF),
-        values: [2200, 1900, 2200, 2300, 2000, 2500],
-      ),
-      LineSeries(
-        name: 'Bar',
-        color: Color(0xFFFF8A3D),
-        values: [1900, 2100, 2200, 2300, 2500, 2700],
-      ),
-      LineSeries(
-        name: 'Lab',
-        color: Color(0xFFA78BFA),
-        values: [2400, 2100, 2400, 2300, 2400, 2600],
-      ),
-    ];
-
-    return const ChartCard(
-      title: 'Combined Revenue (Last 6 Months)',
-      child: MultiLineChart(
-        series: series,
-        xLabels: months,
-        height: 260,
-        yMax: 10500,
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _colorRevenue.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child:
+                const Icon(Icons.trending_up, color: _colorRevenue, size: 24),
+          ),
+          const Gap(14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                KStyles().reg(
+                  text: 'Total Revenue Today (All Sections)',
+                  size: 11,
+                  color: DashboardColors.textOnDarkMuted,
+                ),
+                const Gap(4),
+                KStyles().bold(
+                  text: CurrencyUtils.format(revenue, currency),
+                  size: 22,
+                  color: DashboardColors.textOnDark,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -237,181 +297,100 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  List<Widget> _departmentTiles(BuildContext context) {
+  /// Section navigation — no more `data` param. Each section screen
+  /// reads from DashboardBloc itself so it picks up live polling updates.
+  List<Widget> _departmentTiles(
+      BuildContext context, DashboardData d, String currency) {
     return [
       _DeptTile(
         icon: Icons.monitor_heart_outlined,
         iconColor: DashboardColors.iconBlue,
-        title: StringConstants.emr,
-        subtitle: '248 Patients',
-        revenue: '\$12,450',
-        onTap: () => _openEmr(context),
+        title: 'EMR',
+        subtitle: '${d.emr.totalPatients} Patients',
+        revenue: CurrencyUtils.format(d.emr.totalRevenue, currency),
+        onTap: () => _push(context, const EmrScreen()),
       ),
       _DeptTile(
         icon: Icons.attach_money,
         iconColor: DashboardColors.iconGreen,
-        title: StringConstants.accounts,
-        subtitle: '156 Invoices',
-        revenue: '\$45,230',
-        onTap: () => _openAccounts(context),
+        title: 'Accounts',
+        subtitle: 'Net position',
+        revenue: CurrencyUtils.format(d.accounts.totalRevenue, currency),
+        onTap: () => _push(context, const AccountsScreen()),
       ),
       _DeptTile(
         icon: Icons.inventory_2_outlined,
         iconColor: DashboardColors.iconPurple,
-        title: StringConstants.store,
-        subtitle: '1,234 Items',
-        revenue: '\$23,890',
-        onTap: () => _openStore(context),
+        title: 'Store',
+        subtitle: 'Sales & Purchase',
+        revenue: CurrencyUtils.format(d.store.totalRevenue, currency),
+        onTap: () => _push(context, const StoreScreen()),
       ),
       _DeptTile(
         icon: Icons.local_bar_outlined,
         iconColor: DashboardColors.iconOrange,
-        title: StringConstants.bar,
-        subtitle: '89 Products',
-        revenue: '\$8,650',
-        onTap: () => _openBar(context),
+        title: 'Bar',
+        subtitle: 'Beverages',
+        revenue: CurrencyUtils.format(d.bar.totalRevenue, currency),
+        onTap: () => _push(context, const BarScreen()),
       ),
       _DeptTile(
         icon: Icons.science_outlined,
         iconColor: DashboardColors.iconPurple,
-        title: StringConstants.lab,
-        subtitle: '156 Tests',
-        revenue: '\$18,340',
-        onTap: () => _openLab(context),
+        title: 'Lab',
+        subtitle: '${d.lab.testCount.toInt()} Tests',
+        revenue: CurrencyUtils.format(d.lab.totalRevenue, currency),
+        onTap: () => _push(context, const LabScreen()),
       ),
       _DeptTile(
         icon: Icons.celebration_outlined,
         iconColor: DashboardColors.iconPink,
-        title: StringConstants.banquet,
-        subtitle: '115 Events',
-        revenue: '\$33,000',
-        onTap: () => _openBanquet(context),
+        title: 'Banquet',
+        subtitle: '${d.banquet.totalFunctions.toInt()} Functions',
+        revenue: CurrencyUtils.format(d.banquet.totalRevenue, currency),
+        onTap: () => _push(context, const BanquetScreen()),
       ),
       _DeptTile(
         icon: Icons.restaurant_outlined,
         iconColor: DashboardColors.iconAmber,
-        title: StringConstants.restaurant,
-        subtitle: '85 Orders',
-        revenue: '\$5,800',
-        onTap: () => _openRestaurant(context),
+        title: 'Restaurant',
+        subtitle: '${d.restaurant.totalPax.toInt()} Pax',
+        revenue: CurrencyUtils.format(d.restaurant.totalRevenue, currency),
+        onTap: () => _push(context, const RestaurantScreen()),
       ),
       _DeptTile(
         icon: Icons.groups_outlined,
         iconColor: DashboardColors.iconBlue,
-        title: StringConstants.hr,
-        subtitle: '342 Staff',
-        revenue: '\$24,500',
-        onTap: () => _openHr(context),
+        title: 'HR',
+        subtitle: '${d.hr.totalPresent} Present',
+        revenue: CurrencyUtils.format(d.hr.totalRevenue, currency),
+        onTap: () => _push(context, const HrScreen()),
       ),
       _DeptTile(
         icon: Icons.meeting_room_outlined,
         iconColor: DashboardColors.iconTeal,
-        title: StringConstants.frontofficeFull,
-        subtitle: '156 Check-ins',
-        revenue: '\$8,200',
-        onTap: () => _openFrontoffice(context),
+        title: 'Frontoffice',
+        subtitle: '${d.frontoffice.totalCheckIn.toInt()} Check-ins',
+        revenue: CurrencyUtils.format(d.frontoffice.totalRevenue, currency),
+        onTap: () => _push(context, const FrontofficeScreen()),
       ),
     ];
   }
 
-  // ─────────────────────────────────────────────────────────
-  // Section openers — each provides its own bloc from auto_injector
-  // and dispatches the initial load event.
-  // ─────────────────────────────────────────────────────────
-
-  void _openEmr(BuildContext c) {
-    AppLogger.info(_tag, 'open EMR');
-    Navigator.push(c, MaterialPageRoute(builder: (_) {
-      return BlocProvider(
-        create: (_) => autoInjector.get<EmrBloc>()..add(const EmrLoadRequested()),
-        child: const EmrScreen(),
-      );
-    }));
-  }
-
-  void _openAccounts(BuildContext c) {
-    AppLogger.info(_tag, 'open Accounts');
-    Navigator.push(c, MaterialPageRoute(builder: (_) {
-      return BlocProvider(
-        create: (_) =>
-            autoInjector.get<AccountsBloc>()..add(const AccountsLoadRequested()),
-        child: const AccountsScreen(),
-      );
-    }));
-  }
-
-  void _openStore(BuildContext c) {
-    AppLogger.info(_tag, 'open Store');
-    Navigator.push(c, MaterialPageRoute(builder: (_) {
-      return BlocProvider(
-        create: (_) =>
-            autoInjector.get<StoreBloc>()..add(const StoreLoadRequested()),
-        child: const StoreScreen(),
-      );
-    }));
-  }
-
-  void _openBar(BuildContext c) {
-    AppLogger.info(_tag, 'open Bar');
-    Navigator.push(c, MaterialPageRoute(builder: (_) {
-      return BlocProvider(
-        create: (_) => autoInjector.get<BarBloc>()..add(const BarLoadRequested()),
-        child: const BarScreen(),
-      );
-    }));
-  }
-
-  void _openLab(BuildContext c) {
-    AppLogger.info(_tag, 'open Lab');
-    Navigator.push(c, MaterialPageRoute(builder: (_) {
-      return BlocProvider(
-        create: (_) => autoInjector.get<LabBloc>()..add(const LabLoadRequested()),
-        child: const LabScreen(),
-      );
-    }));
-  }
-
-  void _openBanquet(BuildContext c) {
-    AppLogger.info(_tag, 'open Banquet');
-    Navigator.push(c, MaterialPageRoute(builder: (_) {
-      return BlocProvider(
-        create: (_) =>
-            autoInjector.get<BanquetBloc>()..add(const BanquetLoadRequested()),
-        child: const BanquetScreen(),
-      );
-    }));
-  }
-
-  void _openRestaurant(BuildContext c) {
-    AppLogger.info(_tag, 'open Restaurant');
-    Navigator.push(c, MaterialPageRoute(builder: (_) {
-      return BlocProvider(
-        create: (_) => autoInjector.get<RestaurantBloc>()
-          ..add(const RestaurantLoadRequested()),
-        child: const RestaurantScreen(),
-      );
-    }));
-  }
-
-  void _openHr(BuildContext c) {
-    AppLogger.info(_tag, 'open HR');
-    Navigator.push(c, MaterialPageRoute(builder: (_) {
-      return BlocProvider(
-        create: (_) => autoInjector.get<HrBloc>()..add(const HrLoadRequested()),
-        child: const HrScreen(),
-      );
-    }));
-  }
-
-  void _openFrontoffice(BuildContext c) {
-    AppLogger.info(_tag, 'open Frontoffice');
-    Navigator.push(c, MaterialPageRoute(builder: (_) {
-      return BlocProvider(
-        create: (_) => autoInjector.get<FrontofficeBloc>()
-          ..add(const FrontofficeLoadRequested()),
-        child: const FrontofficeScreen(),
-      );
-    }));
+  /// IMPORTANT: forward the DashboardBloc to the new route so the
+  /// section screen can watch it. Without this, the section screen
+  /// can't find the provider above the route.
+  void _push(BuildContext c, Widget screen) {
+    final bloc = c.read<DashboardBloc>();
+    Navigator.push(
+      c,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider<DashboardBloc>.value(
+          value: bloc,
+          child: screen,
+        ),
+      ),
+    );
   }
 }
 

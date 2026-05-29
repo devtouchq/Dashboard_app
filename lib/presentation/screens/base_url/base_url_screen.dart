@@ -200,12 +200,12 @@ class _BaseUrlScreenState extends State<BaseUrlScreen>
                             icon: Icon(
                               Icons.refresh,
                               size: 14,
-                              color: theme.accentSoft,
+                              color: DashboardColors.iconRed,
                             ),
                             label: KStyles().med(
                               text: 'Clear and start over',
                               size: 11,
-                              color: theme.accentSoft,
+                              color: DashboardColors.iconRed,
                             ),
                             style: TextButton.styleFrom(
                               padding: EdgeInsets.zero,
@@ -215,15 +215,15 @@ class _BaseUrlScreenState extends State<BaseUrlScreen>
                           ),
                         ),
                       ),
-                      const Gap(8),
-                      FadeTransition(
-                        opacity: _fade,
-                        child: KStyles().reg(
-                          text: 'Tip: include http:// or https:// in the URL',
-                          size: 11,
-                          color: DashboardColors.textOnDarkMuted,
-                        ),
-                      ),
+                      const Gap(35),
+                      // FadeTransition(
+                      //   opacity: _fade,
+                      //   child: KStyles().reg(
+                      //     text: 'Tip: include http:// or https:// in the URL',
+                      //     size: 11,
+                      //     color: DashboardColors.textOnDarkMuted,
+                      //   ),
+                      // ),
                       const Gap(20),
                       FadeTransition(
                         opacity: _fade,
@@ -313,7 +313,7 @@ class _BaseUrlScreenState extends State<BaseUrlScreen>
             keyboardType: keyboardType,
             validator: validator,
             autocorrect: false,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: 'Roboto',
               color: DashboardColors.textOnDark,
               fontSize: 14,
@@ -322,7 +322,7 @@ class _BaseUrlScreenState extends State<BaseUrlScreen>
               prefixIcon:
                   Icon(icon, color: DashboardColors.textOnDarkMuted, size: 20),
               hintText: hint,
-              hintStyle: TextStyle(
+              hintStyle: const TextStyle(
                 fontFamily: 'Roboto',
                 color: DashboardColors.textOnDarkMuted,
                 fontSize: 13,

@@ -3,13 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
 
 import '../../../core/constants/section_theme.dart';
-import '../../../core/constants/string_constants.dart';
-import '../../../core/constants/text_styles.dart';
 import '../../../core/utils/app_logger.dart';
-import '../../blocs/lab/lab_bloc.dart';
+import '../../../core/utils/currency_utils.dart';
+import '../../../data/models/dashboard_data.dart';
+import '../../blocs/dashboard/dashboard_bloc.dart';
 import '../../widgets/chart_card.dart';
-import '../../widgets/charts/horizontal_bar_chart.dart';
-import '../../widgets/charts/single_line_chart.dart';
+import '../../widgets/charts/bar_chart_widget.dart';
 import '../../widgets/dashboard_scaffold.dart';
 import '../../widgets/stat_card.dart';
 
@@ -21,35 +20,30 @@ class LabScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     AppLogger.info(_tag, 'build()');
-    return BlocConsumer<LabBloc, LabState>(
-      listener: (context, state) {
-        AppLogger.info(_tag, 'state changed: ${state.status}');
-        if (state.status == LabStatus.failure) {
-          AppLogger.error(_tag, 'Lab load failed: ${state.errorMessage}');
-        }
-      },
+    return BlocBuilder<DashboardBloc, DashboardState>(
+      buildWhen: (a, b) =>
+          a.data?.lab != b.data?.lab || a.data?.currency != b.data?.currency,
       builder: (context, state) {
+        final data = state.data?.lab;
+        final currency = state.data?.currency.defaultCurrency ?? 'INR';
         return DashboardScaffold(
           theme: SectionTheme.lab,
-          title: StringConstants.labDashboard,
-          children: [_body(state)],
+          title: 'Laboratory Dashboard',
+          children: data == null
+              ? [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 80),
+                    child: Center(
+                        child: CircularProgressIndicator(color: Colors.white)),
+                  )
+                ]
+              : [_content(data, currency)],
         );
       },
     );
   }
 
-  Widget _body(LabState state) {
-    if (state.status == LabStatus.loading || state.data == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 80),
-        child: Center(child: CircularProgressIndicator(color: Colors.white)),
-      );
-    }
-    if (state.status == LabStatus.failure) {
-      return _errorView(state.errorMessage);
-    }
-
-    final data = state.data!;
+  Widget _content(LabData data, String currency) {
     return Column(
       children: [
         StatCardRow(
@@ -57,59 +51,38 @@ class LabScreen extends StatelessWidget {
             StatCard(
               icon: Icons.science_outlined,
               iconColor: DashboardColors.iconPurple,
-              value: '${data.totalTests}',
-              label: StringConstants.totalTests,
+              value: '${data.testCount.toInt()}',
+              label: 'Total Tests',
             ),
             StatCard(
-              icon: Icons.access_time,
-              iconColor: DashboardColors.iconAmber,
-              value: '${data.pending}',
-              label: StringConstants.pending,
-            ),
-            StatCard(
-              icon: Icons.check_circle_outline,
+              icon: Icons.attach_money,
               iconColor: DashboardColors.iconGreen,
-              value: '${data.completed}',
-              label: StringConstants.completed,
+              value: CurrencyUtils.format(data.totalRevenue, currency),
+              label: 'Revenue',
+            ),
+            StatCard(
+              icon: Icons.payments_outlined,
+              iconColor: DashboardColors.iconTeal,
+              value: CurrencyUtils.format(data.totalCollection, currency),
+              label: 'Collection',
             ),
           ],
         ),
         const Gap(16),
         ChartCard(
-          title: StringConstants.monthlyTestsConducted,
-          child: SingleLineChart(
-            values:
-                data.monthlyTests.map((p) => p.count.toDouble()).toList(),
-            xLabels: data.monthlyTests.map((p) => p.month).toList(),
-            lineColor: const Color(0xFFA78BFA),
+          title: 'Revenue vs Collection',
+          child: BarChartWidget(
+            groups: [
+              BarGroup(label: 'Revenue', values: [data.totalRevenue.abs()]),
+              BarGroup(
+                  label: 'Collection', values: [data.totalCollection.abs()]),
+            ],
+            barColors: const [Color(0xFFA78BFA)],
+            barWidth: 40,
             height: 200,
           ),
         ),
-        const Gap(16),
-        ChartCard(
-          title: StringConstants.testsByType,
-          child: HorizontalBarChart(
-            items: data.testsByType
-                .map((t) =>
-                    HBarItem(label: t.type, value: t.count.toDouble()))
-                .toList(),
-            barColor: const Color(0xFFA78BFA),
-            height: 220,
-          ),
-        ),
       ],
-    );
-  }
-
-  Widget _errorView(String? msg) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 16),
-      child: KStyles().reg(
-        text: 'Failed to load Lab data\n${msg ?? ''}',
-        size: 13,
-        color: Colors.redAccent,
-        textAlign: TextAlign.center,
-      ),
     );
   }
 }

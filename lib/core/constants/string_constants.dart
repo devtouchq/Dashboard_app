@@ -13,6 +13,7 @@ class StringConstants {
 
   // Home
   static const String welcomeBack = "Welcome back";
+  static const String logintext = "Login to your account";
   static const String dashboard = "Dashboard";
   static const String overallPerformance = "Overall Performance";
   static const String thisWeek = "This week";

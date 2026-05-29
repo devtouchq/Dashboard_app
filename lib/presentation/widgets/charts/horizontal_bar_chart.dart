@@ -108,11 +108,13 @@ class _HorizontalBarChartState extends State<HorizontalBarChart>
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 80,
+                    
                     getTitlesWidget: (value, _) {
                       final i = value.toInt();
                       if (i < 0 || i >= widget.items.length) {
                         return const SizedBox();
                       }
+                      // Rotate label to vertical
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: Align(
@@ -125,6 +127,9 @@ class _HorizontalBarChartState extends State<HorizontalBarChart>
                         ),
                       );
                     },
+                    //!-accoroding the documentation the reservation plan should be equal to teh ability of teh code an the 
+                    //the number of teh person present he area is multipied by the people of the people and the people has to vote for the 
+                    //the reservation of the plan they have made 
                   ),
                 ),
               ),
