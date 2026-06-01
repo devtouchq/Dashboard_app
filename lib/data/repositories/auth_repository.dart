@@ -48,4 +48,44 @@ class AuthRepository {
       rethrow;
     }
   }
+
+  /// Calls the MobileAppLogOut endpoint with credentials from storage.
+  /// Failures are logged but NOT thrown — we still want local storage
+  /// cleared even if the server logout call fails (e.g. offline, token
+  /// already invalid).
+  Future<void> logout({
+    required String authToken,
+    required String userId,
+    required String accountId,
+    required String uniqueId,
+  }) async {
+    const tag = 'AuthRepository';
+    AppLogger.info(tag, 'logout API call');
+
+    final body = {
+      'AuthToken': authToken,
+      'UserId': userId,
+      'AccId': accountId,
+      'UniqueId': uniqueId,
+      'TabId': '',
+    };
+
+    try {
+      await _client.dio.post(
+        '/api/Authentication/Login/MobileAppLogOut',
+        data: body,
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+          responseType: ResponseType.plain,
+        ),
+      );
+      AppLogger.info(tag, 'logout API success');
+    } on DioException catch (e) {
+      // Swallow — local storage clear still happens.
+      AppLogger.error(tag, 'logout API failed: ${e.message}',
+          error: e, stackTrace: e.stackTrace);
+    } catch (e, st) {
+      AppLogger.error(tag, 'logout error', error: e, stackTrace: st);
+    }
+  }
 }

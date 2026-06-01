@@ -8,12 +8,14 @@ import '../../../core/constants/text_styles.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../data/models/dashboard_data.dart';
+import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/dashboard/dashboard_bloc.dart';
 import '../../widgets/chart_card.dart';
 import '../../widgets/charts/bar_chart_widget.dart';
 import '../accounts/accounts_screen.dart';
 import '../banquet/banquet_screen.dart';
 import '../bar/bar_screen.dart';
+import '../base_url/base_url_screen.dart';
 import '../emr/emr_screen.dart';
 import '../frontoffice/frontoffice_screen.dart';
 import '../hr/hr_screen.dart';
@@ -80,15 +82,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         child: SafeArea(
           bottom: false,
-          child: BlocBuilder<DashboardBloc, DashboardState>(
-            builder: (context, state) {
-              return Column(
-                children: [
-                  _topBar(state),
-                  Expanded(child: _body(context, state, theme)),
-                ],
+          // Listen for AuthBloc.loggedOut and navigate to BaseUrl screen.
+          child: BlocListener<AuthBloc, AuthState>(
+            listenWhen: (a, b) =>
+                a.status != b.status && b.status == AuthStatus.loggedOut,
+            listener: (context, _) {
+              AppLogger.info(_tag, 'auth → loggedOut, going to BaseUrl');
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const BaseUrlScreen()),
+                (route) => false, // wipe the entire navigation stack
               );
             },
+            child: BlocBuilder<DashboardBloc, DashboardState>(
+              builder: (context, state) {
+                return Column(
+                  children: [
+                    _topBar(context, state),
+                    Expanded(child: _body(context, state, theme)),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -155,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _topBar(DashboardState state) {
+  Widget _topBar(BuildContext context, DashboardState state) {
     final currency = state.data?.currency.defaultCurrency ?? 'INR';
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
@@ -199,16 +213,128 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             icon: const Icon(Icons.notifications_outlined,
                 color: DashboardColors.textOnDark, size: 24),
           ),
-          IconButton(
-            onPressed: () {
-              
-            },
-            icon: const Icon(Icons.person_outline,
-                color: DashboardColors.textOnDark, size: 24),
-          ),
+          _profileMenu(context),
         ],
       ),
     );
+  }
+
+  /// Person icon → popup menu → Logout option.
+  /// Selecting Logout opens a confirmation AlertDialog.
+  Widget _profileMenu(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.person_outline,
+          color: DashboardColors.textOnDark, size: 24),
+      tooltip: 'Profile',
+      color: const Color(0xFF1F2937),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      onSelected: (value) {
+        if (value == 'logout') {
+          _confirmLogout(context);
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'logout',
+          child: Row(
+            children: [
+              const Icon(Icons.logout_rounded,
+                  color: Color(0xFFFF8A8A), size: 18),
+              const Gap(10),
+              KStyles().semiBold(
+                text: 'Logout',
+                size: 13,
+                color: DashboardColors.textOnDark,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    AppLogger.info(_tag, 'logout tap — showing confirm dialog');
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1F2937),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          title: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF8A8A).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.logout_rounded,
+                    color: Color(0xFFFF8A8A), size: 20),
+              ),
+              const Gap(12),
+              KStyles().bold(
+                text: 'Logout?',
+                size: 16,
+                color: DashboardColors.textOnDark,
+              ),
+            ],
+          ),
+          content: KStyles().reg(
+            text:
+                'Are you sure you want to logout? You will need to sign in again.',
+            size: 13,
+            color: DashboardColors.textOnDarkSecondary,
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(false),
+              style: TextButton.styleFrom(
+                foregroundColor: DashboardColors.textOnDarkSecondary,
+              ),
+              child: KStyles().semiBold(
+                text: 'Cancel',
+                size: 13,
+                color: DashboardColors.textOnDarkSecondary,
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF8A8A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              child: KStyles().semiBold(
+                text: 'Logout',
+                size: 13,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldLogout == true && context.mounted) {
+      AppLogger.info(_tag, 'confirmed — dispatching LogoutRequested');
+      // Stop polling so we don't fire dashboard requests during logout.
+      context.read<DashboardBloc>().add(const DashboardPollingStopped());
+      context.read<AuthBloc>().add(const LogoutRequested());
+    }
   }
 
   Widget _welcomeHero(SectionTheme theme, String currency) {
@@ -299,8 +425,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Section navigation — no more `data` param. Each section screen
-  /// reads from DashboardBloc itself so it picks up live polling updates.
   List<Widget> _departmentTiles(
       BuildContext context, DashboardData d, String currency) {
     return [
@@ -379,9 +503,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ];
   }
 
-  /// IMPORTANT: forward the DashboardBloc to the new route so the
-  /// section screen can watch it. Without this, the section screen
-  /// can't find the provider above the route.
   void _push(BuildContext c, Widget screen) {
     final bloc = c.read<DashboardBloc>();
     Navigator.push(

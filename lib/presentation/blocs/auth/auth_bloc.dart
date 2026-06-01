@@ -44,6 +44,7 @@ class BranchSelected extends AuthEvent {
   List<Object?> get props => [branch];
 }
 
+// ── logout ──────────────────────────────────────────────────
 class LogoutRequested extends AuthEvent {
   const LogoutRequested();
 }
@@ -59,6 +60,8 @@ enum AuthStatus {
   loginSuccess,
   branchSelected,
   failure,
+  loggedOut,
+  loading
 }
 
 class AuthState extends Equatable {
@@ -181,10 +184,39 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     ));
   }
 
+  // ── 4. The handler ───────────────────────────────────────────
   Future<void> _onLogout(LogoutRequested event, Emitter<AuthState> emit) async {
-    AppLogger.info(_tag, 'LogoutRequested');
-    await _storage.clearSession();
-    emit(const AuthState());
+    const tag = 'AuthBloc';
+    AppLogger.info(tag, 'logout requested');
+
+    // Grab credentials BEFORE clearing storage, since the API needs them.
+    final authToken = _storage.authToken ?? '';
+    final userId = _storage.userId ?? '';
+    final accountId = _storage.accountId ?? '';
+    final uniqueId = _storage.uniqueId ?? '';
+
+    emit(state.copyWith(status: AuthStatus.loading));
+
+    // Fire-and-forget the API call. Even if it fails, we always clear
+    // local storage — otherwise a logged-out user could be stuck with
+    // stale credentials.
+    try {
+      await _repository.logout(
+        authToken: authToken,
+        userId: userId,
+        accountId: accountId,
+        uniqueId: uniqueId,
+      );
+    } catch (e) {
+      AppLogger.error(tag, 'logout repo threw — clearing storage anyway',
+          error: e);
+    }
+
+    // Wipe EVERYTHING — baseUrl, session, remember-me, all of it.
+    // User will see BaseUrlScreen on next launch.
+    await _storage.clearAll();
+
+    emit(state.copyWith(status: AuthStatus.loggedOut));
   }
 
   /// Normalize URL:
