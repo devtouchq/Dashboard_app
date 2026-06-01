@@ -71,10 +71,11 @@ class FrontofficeScreen extends StatelessWidget {
         StatCardRow(
           cards: [
             StatCard(
-              icon: Icons.logout_outlined,
+              //collection icon
+              icon: Icons.collections_outlined,
               iconColor: DashboardColors.iconOrange,
-              value: '${data.probableCheckout.toInt()}',
-              label: 'Probable Check-out',
+              value: CurrencyUtils.format(data.totalCollection, currency),
+              label: 'Total Collections',
             ),
             StatCard(
               icon: Icons.attach_money,

@@ -18,7 +18,7 @@ dependencies:
   equatable: ^2.0.5
 
   # Charts — switched from graphic to fl_chart
-  fl_chart: ^0.69.0
+  fl_chart: ^0.69.2
 
   # Networking
   dio: ^5.7.0

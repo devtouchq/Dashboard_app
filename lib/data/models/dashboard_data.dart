@@ -86,6 +86,9 @@ class EmrData extends Equatable {
   final int maleCount;
   final int femaleCount;
   final double totalRevenue;
+  final double opAdvanceAmount;
+  final double opBillAmount;
+
   final List<DoctorPatientCount> doctorPatients;
 
   const EmrData({
@@ -100,6 +103,8 @@ class EmrData extends Equatable {
     required this.maleCount,
     required this.femaleCount,
     required this.totalRevenue,
+    required this.opAdvanceAmount,
+    required this.opBillAmount,
     required this.doctorPatients,
   });
 
@@ -115,6 +120,8 @@ class EmrData extends Equatable {
         maleCount: _toI(j['MaleCount']),
         femaleCount: _toI(j['FemaleCount']),
         totalRevenue: _toD(j['TotalRevenueForEmr']),
+        opAdvanceAmount: _toD(j['OpAdvanceAmount']),
+        opBillAmount: _toD(j['OpBillAmount']),
         doctorPatients: (j['DoctorPatients'] as List?)
                 ?.map((e) =>
                     DoctorPatientCount.fromJson(e as Map<String, dynamic>))
@@ -135,6 +142,8 @@ class EmrData extends Equatable {
         maleCount,
         femaleCount,
         totalRevenue,
+        opAdvanceAmount,
+        opBillAmount,
         doctorPatients,
       ];
 }
@@ -266,19 +275,69 @@ class StoreData extends Equatable {
 // ─────────────────────────────────────────────────────────────
 //  Bar
 // ─────────────────────────────────────────────────────────────
+class BarItemTotal extends Equatable {
+  final String category;
+  final double amount;
+
+  const BarItemTotal({required this.category, required this.amount});
+
+  @override
+  List<Object?> get props => [category, amount];
+}
+
 class BarData extends Equatable {
   final double totalRevenue;
   final double totalCollection;
+  final List<BarItemTotal> itemTotals;
 
-  const BarData({required this.totalRevenue, required this.totalCollection});
+  const BarData({
+    required this.totalRevenue,
+    required this.totalCollection,
+    required this.itemTotals,
+  });
 
-  factory BarData.fromJson(Map<String, dynamic> j) => BarData(
-        totalRevenue: _toD(j['TotalRevenueBar']),
-        totalCollection: _toD(j['TotalCollectionBar']),
-      );
+  factory BarData.fromJson(Map<String, dynamic> j) {
+    // The API sends amounts and categories as parallel CSV strings:
+    //   "1400,100,350,1400,100,350,..."
+    //   "WINE,BEER,GIN,WINE,BEER,GIN,..."
+    // Categories repeat, so we sum them up per category.
+    final amountsCsv = _toS(j['hiddenTotalBarItemAmount']);
+    final categoriesCsv = _toS(j['hiddenTotalBarItemCategory']);
+
+    final amounts = _splitCsv(amountsCsv).map(_toD).toList();
+    final categories = _splitCsv(categoriesCsv);
+
+    final summed = <String, double>{};
+    final pairCount =
+        amounts.length < categories.length ? amounts.length : categories.length;
+    for (var i = 0; i < pairCount; i++) {
+      final cat = categories[i].trim();
+      if (cat.isEmpty) continue;
+      summed[cat] = (summed[cat] ?? 0) + amounts[i];
+    }
+
+    // Sort descending so the biggest bar is first.
+    final totals = summed.entries
+        .map((e) => BarItemTotal(category: e.key, amount: e.value))
+        .toList()
+      ..sort((a, b) => b.amount.compareTo(a.amount));
+
+    return BarData(
+      totalRevenue: _toD(j['TotalRevenueBar']),
+      totalCollection: _toD(j['TotalCollectionBar']),
+      itemTotals: totals,
+    );
+  }
 
   @override
-  List<Object?> get props => [totalRevenue, totalCollection];
+  List<Object?> get props => [totalRevenue, totalCollection, itemTotals];
+}
+
+// Helper used by BarData.fromJson — drops trailing empty token left by
+// the API's trailing comma ("WINE,BEER,GIN,").
+List<String> _splitCsv(String csv) {
+  if (csv.isEmpty) return const [];
+  return csv.split(',').where((s) => s.trim().isNotEmpty).toList();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -391,6 +450,7 @@ class FrontofficeData extends Equatable {
   final double expectedArrival;
   final double probableCheckout;
   final double totalRevenue;
+  final double totalCollection;
 
   const FrontofficeData({
     required this.totalCheckIn,
@@ -398,6 +458,7 @@ class FrontofficeData extends Equatable {
     required this.expectedArrival,
     required this.probableCheckout,
     required this.totalRevenue,
+    required this.totalCollection,
   });
 
   factory FrontofficeData.fromAccounts(Map<String, dynamic> j) =>
@@ -407,6 +468,7 @@ class FrontofficeData extends Equatable {
         expectedArrival: _toD(j['TotalExpectedArrival']),
         probableCheckout: _toD(j['TotalProbableCheckout']),
         totalRevenue: _toD(j['TotalRevenueFo']),
+        totalCollection: _toD(j['TotalCollection']),
       );
 
   @override
@@ -416,6 +478,7 @@ class FrontofficeData extends Equatable {
         expectedArrival,
         probableCheckout,
         totalRevenue,
+        totalCollection
       ];
 }
 
