@@ -385,7 +385,7 @@ class _LoginScreenState extends State<LoginScreen>
             obscureText: obscureText,
             validator: validator,
             autocorrect: false,
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: 'Roboto',
               color: DashboardColors.textOnDark,
               fontSize: 14,
@@ -395,7 +395,7 @@ class _LoginScreenState extends State<LoginScreen>
                   Icon(icon, color: DashboardColors.textOnDarkMuted, size: 20),
               suffixIcon: trailing,
               hintText: hint,
-              hintStyle: TextStyle(
+              hintStyle: const TextStyle(
                 fontFamily: 'Roboto',
                 color: DashboardColors.textOnDarkMuted,
                 fontSize: 13,

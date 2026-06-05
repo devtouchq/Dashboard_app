@@ -90,7 +90,7 @@ class _BaseUrlScreenState extends State<BaseUrlScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = SectionTheme.home;
+    const theme = SectionTheme.home;
 
     return Scaffold(
       backgroundColor: theme.backgroundGradient[0],
@@ -197,7 +197,7 @@ class _BaseUrlScreenState extends State<BaseUrlScreen>
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
                             onPressed: _resetAll,
-                            icon: Icon(
+                            icon: const Icon(
                               Icons.refresh,
                               size: 14,
                               color: DashboardColors.iconRed,

@@ -25,11 +25,11 @@ class AyurlivApp extends StatelessWidget {
     // AuthBloc is a singleton so it spans BaseUrl → Login → Branch.
     return BlocProvider<AuthBloc>(
       create: (_) => autoInjector.get<AuthBloc>(),
-      child: MaterialApp(
+      child: const MaterialApp(
         title: StringConstants.appName,
         debugShowCheckedModeBanner: false,
        // theme: AppTheme.light,
-        home: const _RouteGate(),
+        home: _RouteGate(),
       ),
     );
   }

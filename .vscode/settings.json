@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "C:/Users/MY PC/ayurlivedashboard/windows/flutter"
+    "cmake.sourceDirectory": "C:/Users/MY PC/ayurlivedashboard/windows/flutter",
+    "java.configuration.updateBuildConfiguration": "interactive"
 }

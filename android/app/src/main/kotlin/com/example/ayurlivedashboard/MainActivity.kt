@@ -1,4 +1,4 @@
-package com.example.ayurlivedashboard
+package com.touchq.ayurlivedashboard
 
 import io.flutter.embedding.android.FlutterActivity
 

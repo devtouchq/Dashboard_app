@@ -68,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final theme = SectionTheme.home;
+    const theme = SectionTheme.home;
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: theme.backgroundGradient[0],

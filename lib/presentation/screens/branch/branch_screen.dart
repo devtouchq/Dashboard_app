@@ -61,7 +61,7 @@ class _BranchScreenState extends State<BranchScreen>
     if (_selected == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(StringConstants.branchRequired),
+          content: const Text(StringConstants.branchRequired),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.all(16),
@@ -77,7 +77,7 @@ class _BranchScreenState extends State<BranchScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = SectionTheme.home;
+    const theme = SectionTheme.home;
 
     return Scaffold(
       backgroundColor: theme.backgroundGradient[0],
