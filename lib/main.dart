@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/constants/string_constants.dart';
 import 'core/di/injector.dart';
 import 'core/di/local_storage_service.dart';
+import 'core/services/notification_center_service.dart';
 import 'core/utils/app_logger.dart';
 import 'presentation/blocs/auth/auth_bloc.dart';
 import 'presentation/blocs/dashboard/dashboard_bloc.dart';
@@ -40,6 +41,9 @@ Future<void> main() async {
   // Initialize app dependencies (your existing setup).
   await setupDependencies();
 
+// NEW — initialize unread badge service BEFORE NotificationService
+  // so the badge count is loaded when notifications start arriving.
+  await NotificationCenterService().init();
   // Initialize the notification service after Firebase is ready.
   await NotificationService.init();
 

@@ -88,7 +88,6 @@ class EmrData extends Equatable {
   final double totalRevenue;
   final double opAdvanceAmount;
   final double opBillAmount;
-
   final List<DoctorPatientCount> doctorPatients;
 
   const EmrData({
@@ -297,10 +296,6 @@ class BarData extends Equatable {
   });
 
   factory BarData.fromJson(Map<String, dynamic> j) {
-    // The API sends amounts and categories as parallel CSV strings:
-    //   "1400,100,350,1400,100,350,..."
-    //   "WINE,BEER,GIN,WINE,BEER,GIN,..."
-    // Categories repeat, so we sum them up per category.
     final amountsCsv = _toS(j['hiddenTotalBarItemAmount']);
     final categoriesCsv = _toS(j['hiddenTotalBarItemCategory']);
 
@@ -316,7 +311,6 @@ class BarData extends Equatable {
       summed[cat] = (summed[cat] ?? 0) + amounts[i];
     }
 
-    // Sort descending so the biggest bar is first.
     final totals = summed.entries
         .map((e) => BarItemTotal(category: e.key, amount: e.value))
         .toList()
@@ -333,8 +327,6 @@ class BarData extends Equatable {
   List<Object?> get props => [totalRevenue, totalCollection, itemTotals];
 }
 
-// Helper used by BarData.fromJson — drops trailing empty token left by
-// the API's trailing comma ("WINE,BEER,GIN,").
 List<String> _splitCsv(String csv) {
   if (csv.isEmpty) return const [];
   return csv.split(',').where((s) => s.trim().isNotEmpty).toList();
@@ -544,6 +536,7 @@ class OverviewData extends Equatable {
             const [],
       );
 
+  /// Sum of TotalRevenue across all SectionsDaily entries.
   double get totalRevenue =>
       sectionsDaily.fold<double>(0, (s, x) => s + x.totalRevenue);
 

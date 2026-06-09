@@ -7,17 +7,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../utils/app_logger.dart';
+import 'notification_center_service.dart';
 
 /// Background message handler. MUST be a top-level function (not a method)
 /// because the OS spawns a fresh isolate to execute it when the app is
 /// terminated. Add this annotation to keep the tree-shaker happy.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Don't call Firebase.initializeApp() here — flutter_local_notifications
-  // can't show a banner from a background isolate anyway on Android (the
-  // system tray banner from FCM data payload is what shows).
   AppLogger.info('FCM', 'background message: ${message.messageId}');
   AppLogger.info('FCM', 'data: ${message.data}');
+// Bump the badge from the background isolate too. This works because
+// SharedPreferences is process-safe — the value persists and the main
+// isolate picks it up via the stream the next time it reads.
+  try {
+    await NotificationCenterService().init();
+    await NotificationCenterService().increment();
+  } catch (e) {
+    AppLogger.error('FCM', 'badge bump failed: $e');
+  }
 }
 
 /// Central notification handler. Call `init()` once after Firebase.initializeApp().
@@ -52,6 +59,7 @@ class NotificationService {
 
   /// Initialize. Call once from main() after Firebase.initializeApp().
   static Future<void> init() async {
+    print('═══ NotificationService.init() ENTERED');
     AppLogger.info(_tag, 'init');
 
     // 1. Set up local notifications (used to show foreground banners
@@ -143,8 +151,10 @@ class NotificationService {
   }
 
   static Future<void> _refreshToken() async {
+    print('═══ _refreshToken() ENTERED');
     try {
       final token = await _messaging.getToken();
+      print('═══ getToken returned: $token');
       AppLogger.info(_tag, 'FCM token: $token');
       _fcmToken = token;
       if (token != null) _tokenController.add(token);
@@ -186,7 +196,23 @@ class NotificationService {
         payload: json.encode(message.data),
       );
     }
+    // NEW: bump the unread badge whenever a foreground notification arrives.
+    await NotificationCenterService().increment();
   }
+  //TODO: consider debouncing if you expect a flood of foreground notifications
+// ─── (OPTIONAL) — sync badge when app comes back to foreground ─────
+// When the user reopens the app after a background push, the main
+// isolate's in-memory count may be stale (the background isolate wrote
+// to SharedPreferences but our stream didn't fire). Re-read at init.
+//
+// Already handled by NotificationCenterService.init() being called once
+// in main.dart. If you want to refresh whenever the app resumes from
+// background, add this to your HomeScreen's didChangeAppLifecycleState:
+//
+//   if (state == AppLifecycleState.resumed) {
+//     // Re-read in case a background notification arrived while we slept.
+//     await NotificationCenterService().init();
+//   }
 
   // ─────────────────────────────────────────────────────────────
   //  Tap handling — user opens a notification.

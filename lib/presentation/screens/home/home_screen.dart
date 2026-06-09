@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gap/gap.dart';
@@ -5,6 +7,7 @@ import 'package:gap/gap.dart';
 import '../../../core/constants/section_theme.dart';
 import '../../../core/constants/string_constants.dart';
 import '../../../core/constants/text_styles.dart';
+import '../../../core/services/notification_center_service.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../../core/utils/currency_utils.dart';
 import '../../../data/models/dashboard_data.dart';
@@ -23,6 +26,64 @@ import '../lab/lab_screen.dart';
 import '../restaurant/restaurant_screen.dart';
 import '../store/store_screen.dart';
 
+/// Per-section visual config — icon, color, and the screen to open on tap.
+/// Keyed by the section `Name` returned by the API.
+class _SectionVisual {
+  final IconData icon;
+  final Color color;
+  final Widget Function() screen;
+
+  const _SectionVisual(this.icon, this.color, this.screen);
+}
+
+const Map<String, _SectionVisual> _sectionVisuals = {
+  'EMR': _SectionVisual(
+    Icons.monitor_heart_outlined,
+    DashboardColors.iconBlue,
+    EmrScreen.new,
+  ),
+  'Accounts': _SectionVisual(
+    Icons.attach_money,
+    DashboardColors.iconGreen,
+    AccountsScreen.new,
+  ),
+  'Store': _SectionVisual(
+    Icons.inventory_2_outlined,
+    DashboardColors.iconPurple,
+    StoreScreen.new,
+  ),
+  'Bar': _SectionVisual(
+    Icons.local_bar_outlined,
+    DashboardColors.iconOrange,
+    BarScreen.new,
+  ),
+  'Lab': _SectionVisual(
+    Icons.science_outlined,
+    DashboardColors.iconPurple,
+    LabScreen.new,
+  ),
+  'Banquet': _SectionVisual(
+    Icons.celebration_outlined,
+    DashboardColors.iconPink,
+    BanquetScreen.new,
+  ),
+  'Restaurant': _SectionVisual(
+    Icons.restaurant_outlined,
+    DashboardColors.iconAmber,
+    RestaurantScreen.new,
+  ),
+  'HR': _SectionVisual(
+    Icons.groups_outlined,
+    DashboardColors.iconBlue,
+    HrScreen.new,
+  ),
+  'Frontoffice': _SectionVisual(
+    Icons.meeting_room_outlined,
+    DashboardColors.iconTeal,
+    FrontofficeScreen.new,
+  ),
+};
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -34,11 +95,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static const _tag = 'HomeScreen';
   static const _colorRevenue = Color(0xFF4ADE80);
 
+  late final StreamSubscription<int> _unreadSub;
+  int _unreadCount = NotificationCenterService().unreadCount;
+
   @override
   void initState() {
     super.initState();
     AppLogger.info(_tag, 'initState — start polling');
     WidgetsBinding.instance.addObserver(this);
+
+    _unreadSub = NotificationCenterService().stream.listen((count) {
+      if (mounted) setState(() => _unreadCount = count);
+    });
+
     context.read<DashboardBloc>().add(
           const DashboardPollingStarted(interval: Duration(seconds: 5)),
         );
@@ -47,6 +116,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     AppLogger.info(_tag, 'dispose — stop polling');
+    _unreadSub.cancel();
     WidgetsBinding.instance.removeObserver(this);
     try {
       context.read<DashboardBloc>().add(const DashboardPollingStopped());
@@ -60,6 +130,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         state == AppLifecycleState.inactive) {
       context.read<DashboardBloc>().add(const DashboardPollingStopped());
     } else if (state == AppLifecycleState.resumed) {
+      NotificationCenterService().init().then((_) {
+        if (mounted) {
+          setState(
+              () => _unreadCount = NotificationCenterService().unreadCount);
+        }
+      });
       context.read<DashboardBloc>().add(
             const DashboardPollingStarted(interval: Duration(seconds: 5)),
           );
@@ -68,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    const theme = SectionTheme.home;
+    final theme = SectionTheme.home;
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: theme.backgroundGradient[0],
@@ -82,7 +158,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         child: SafeArea(
           bottom: false,
-          // Listen for AuthBloc.loggedOut and navigate to BaseUrl screen.
           child: BlocListener<AuthBloc, AuthState>(
             listenWhen: (a, b) =>
                 a.status != b.status && b.status == AuthStatus.loggedOut,
@@ -90,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               AppLogger.info(_tag, 'auth → loggedOut, going to BaseUrl');
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const BaseUrlScreen()),
-                (route) => false, // wipe the entire navigation stack
+                (route) => false,
               );
             },
             child: BlocBuilder<DashboardBloc, DashboardState>(
@@ -119,6 +194,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     final data = state.data!;
     final currency = data.currency.defaultCurrency;
+
+    // Active tiles: count > 0 OR revenue > 0.
+    final activeTiles = data.overview.sectionTiles
+        .where((t) => t.count != 0 || t.revenue != 0)
+        .toList();
+
+    final allEmpty = activeTiles.isEmpty;
+
     return RefreshIndicator(
       onRefresh: () async {
         context.read<DashboardBloc>().add(const DashboardRefreshed());
@@ -129,13 +212,98 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         children: [
           _welcomeHero(theme, currency),
           const Gap(20),
-          _revenueChart(data.overview),
-          const Gap(14),
-          _summaryCard(data.overview, currency),
-          const Gap(22),
-          _departmentsHeader(),
-          const Gap(12),
-          ..._departmentTiles(context, data, currency),
+          if (allEmpty) ...[
+            _noActivityState(),
+          ] else ...[
+            _revenueChart(data.overview.sectionsDaily, activeTiles),
+            const Gap(14),
+            _summaryCard(data.overview, currency),
+            const Gap(22),
+            _departmentsHeader(),
+            const Gap(12),
+            ..._departmentTiles(context, activeTiles, currency),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ─── Department tiles — driven entirely by SectionTiles ──────────
+  List<Widget> _departmentTiles(
+      BuildContext context, List<SectionTile> tiles, String currency) {
+    return tiles.map((tile) {
+      final visual = _sectionVisuals[tile.name];
+      if (visual == null) {
+        // Unknown section name — render a neutral tile.
+        return _DeptTile(
+          icon: Icons.dashboard_outlined,
+          iconColor: Colors.grey,
+          title: tile.name,
+          subtitle: '${_fmtCount(tile.count)} ${tile.countLabel}',
+          revenue: CurrencyUtils.format(tile.revenue, currency),
+          onTap: () {},
+        );
+      }
+      return _DeptTile(
+        icon: visual.icon,
+        iconColor: visual.color,
+        title: tile.name,
+        subtitle: '${_fmtCount(tile.count)} ${tile.countLabel}',
+        revenue: CurrencyUtils.format(tile.revenue, currency),
+        onTap: () => _push(context, visual.screen()),
+      );
+    }).toList();
+  }
+
+  /// Drop trailing .0 on whole numbers — "1" not "1.0".
+  String _fmtCount(double v) {
+    if (v == v.truncate()) return v.toInt().toString();
+    return v.toString();
+  }
+
+  Widget _noActivityState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 16),
+      child: Column(
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.06),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            ),
+            child: const Icon(Icons.beach_access_outlined,
+                color: Colors.white54, size: 48),
+          ),
+          const Gap(20),
+          KStyles().bold(
+            text: 'No activity today',
+            size: 18,
+            color: DashboardColors.textOnDark,
+          ),
+          const Gap(8),
+          KStyles().reg(
+            text:
+                "When your branches start logging activity, it'll show up here.",
+            size: 12,
+            color: DashboardColors.textOnDarkMuted,
+            textAlign: TextAlign.center,
+          ),
+          const Gap(20),
+          TextButton.icon(
+            onPressed: () {
+              context.read<DashboardBloc>().add(const DashboardRefreshed());
+            },
+            icon: const Icon(Icons.refresh,
+                color: DashboardColors.textOnDarkSecondary, size: 16),
+            label: KStyles().semiBold(
+              text: 'Check again',
+              size: 12,
+              color: DashboardColors.textOnDarkSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -151,8 +319,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const Icon(Icons.cloud_off, color: Colors.white54, size: 40),
             const Gap(12),
             KStyles().reg(
-              text:
-                  'Failed to load\nPlease check your connection \n Close and Re-Open the app',
+              text: 'Failed to load\n${state.errorMessage ?? ''}',
               size: 13,
               color: Colors.redAccent,
               textAlign: TextAlign.center,
@@ -176,11 +343,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.menu,
-                color: DashboardColors.textOnDark, size: 26),
-          ),
           Expanded(
             child: Center(
               child: Row(
@@ -209,19 +371,57 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_outlined,
-                color: DashboardColors.textOnDark, size: 24),
-          ),
+          _bellWithBadge(),
           _profileMenu(context),
         ],
       ),
     );
   }
 
-  /// Person icon → popup menu → Logout option.
-  /// Selecting Logout opens a confirmation AlertDialog.
+  Widget _bellWithBadge() {
+    final hasUnread = _unreadCount > 0;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          onPressed: () async {
+            await NotificationCenterService().markAllRead();
+          },
+          icon: const Icon(Icons.notifications_outlined,
+              color: DashboardColors.textOnDark, size: 24),
+          tooltip: hasUnread ? '$_unreadCount unread' : 'Notifications',
+        ),
+        if (hasUnread)
+          Positioned(
+            top: 6,
+            right: 4,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: _unreadCount > 9 ? 4 : 5,
+                vertical: 2,
+              ),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: SectionTheme.home.backgroundGradient[0],
+                  width: 1.5,
+                ),
+              ),
+              child: Center(
+                child: KStyles().bold(
+                  text: _unreadCount > 9 ? '9+' : '$_unreadCount',
+                  size: 9,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _profileMenu(BuildContext context) {
     return PopupMenuButton<String>(
       icon: const Icon(Icons.person_outline,
@@ -233,9 +433,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
       ),
       onSelected: (value) {
-        if (value == 'logout') {
-          _confirmLogout(context);
-        }
+        if (value == 'logout') _confirmLogout(context);
       },
       itemBuilder: (_) => [
         PopupMenuItem<String>(
@@ -258,10 +456,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _confirmLogout(BuildContext context) async {
-    AppLogger.info(_tag, 'logout tap — showing confirm dialog');
     final shouldLogout = await showDialog<bool>(
       context: context,
-      barrierDismissible: true,
       builder: (dialogCtx) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1F2937),
@@ -299,9 +495,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogCtx).pop(false),
-              style: TextButton.styleFrom(
-                foregroundColor: DashboardColors.textOnDarkSecondary,
-              ),
               child: KStyles().semiBold(
                 text: 'Cancel',
                 size: 13,
@@ -316,8 +509,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               ),
               child: KStyles().semiBold(
                 text: 'Logout',
@@ -331,8 +522,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
 
     if (shouldLogout == true && context.mounted) {
-      AppLogger.info(_tag, 'confirmed — dispatching LogoutRequested');
-      // Stop polling so we don't fire dashboard requests during logout.
       context.read<DashboardBloc>().add(const DashboardPollingStopped());
       context.read<AuthBloc>().add(const LogoutRequested());
     }
@@ -357,12 +546,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _revenueChart(OverviewData overview) {
-    final sections = overview.sectionsDaily;
+  /// Show only the SectionsDaily entries whose section is also in the
+  /// active tiles. The daily list uses 'HrManager' and 'FrontOffice'
+  /// while tiles use 'HR' and 'Frontoffice', so we normalize here.
+  Widget _revenueChart(
+      List<SectionDaily> daily, List<SectionTile> activeTiles) {
+    String norm(String n) {
+      if (n == 'HrManager') return 'HR';
+      if (n == 'FrontOffice') return 'Frontoffice';
+      return n;
+    }
+
+    final activeNames = activeTiles.map((t) => t.name).toSet();
+    final filtered =
+        daily.where((s) => activeNames.contains(norm(s.name))).toList();
+
     return ChartCard(
       title: "Today's Revenue by Section",
       child: BarChartWidget(
-        groups: sections
+        groups: filtered
             .map((s) => BarGroup(label: s.name, values: [s.totalRevenue]))
             .toList(),
         barColors: const [_colorRevenue],
@@ -373,6 +575,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Summary = sum of TotalRevenue across all SectionsDaily entries.
   Widget _summaryCard(OverviewData overview, String currency) {
     final revenue = overview.totalRevenue;
     return Container(
@@ -424,84 +627,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       size: 14,
       color: DashboardColors.textOnDark,
     );
-  }
-
-  List<Widget> _departmentTiles(
-      BuildContext context, DashboardData d, String currency) {
-    return [
-      _DeptTile(
-        icon: Icons.monitor_heart_outlined,
-        iconColor: DashboardColors.iconBlue,
-        title: 'EMR',
-        subtitle: '${d.emr.totalPatients} Patients',
-        revenue: CurrencyUtils.format(d.emr.totalRevenue, currency),
-        onTap: () => _push(context, const EmrScreen()),
-      ),
-      _DeptTile(
-        icon: Icons.attach_money,
-        iconColor: DashboardColors.iconGreen,
-        title: 'Accounts',
-        subtitle: '${d.accounts.totalReceipts.toInt()} Receipts',
-        revenue: CurrencyUtils.format(d.accounts.totalRevenue, currency),
-        onTap: () => _push(context, const AccountsScreen()),
-      ),
-      _DeptTile(
-        icon: Icons.inventory_2_outlined,
-        iconColor: DashboardColors.iconPurple,
-        title: 'Store',
-        subtitle: '${d.store.purchase.toInt()}  purchase',
-        revenue: CurrencyUtils.format(d.store.totalRevenue, currency),
-        onTap: () => _push(context, const StoreScreen()),
-      ),
-      _DeptTile(
-        icon: Icons.local_bar_outlined,
-        iconColor: DashboardColors.iconOrange,
-        title: 'Bar',
-        subtitle: '${d.bar.totalCollection.toInt()}  collection',
-        revenue: CurrencyUtils.format(d.bar.totalRevenue, currency),
-        onTap: () => _push(context, const BarScreen()),
-      ),
-      _DeptTile(
-        icon: Icons.science_outlined,
-        iconColor: DashboardColors.iconPurple,
-        title: 'Lab',
-        subtitle: '${d.lab.testCount.toInt()} Tests',
-        revenue: CurrencyUtils.format(d.lab.totalRevenue, currency),
-        onTap: () => _push(context, const LabScreen()),
-      ),
-      _DeptTile(
-        icon: Icons.celebration_outlined,
-        iconColor: DashboardColors.iconPink,
-        title: 'Banquet',
-        subtitle: '${d.banquet.totalFunctions.toInt()} Events',
-        revenue: CurrencyUtils.format(d.banquet.totalRevenue, currency),
-        onTap: () => _push(context, const BanquetScreen()),
-      ),
-      _DeptTile(
-        icon: Icons.restaurant_outlined,
-        iconColor: DashboardColors.iconAmber,
-        title: 'Restaurant',
-        subtitle: '${d.restaurant.totalPax.toInt()} Customers',
-        revenue: CurrencyUtils.format(d.restaurant.totalRevenue, currency),
-        onTap: () => _push(context, const RestaurantScreen()),
-      ),
-      _DeptTile(
-        icon: Icons.groups_outlined,
-        iconColor: DashboardColors.iconBlue,
-        title: 'HR',
-        subtitle: '${d.hr.totalPresent} Present',
-        revenue: CurrencyUtils.format(d.hr.totalRevenue, currency),
-        onTap: () => _push(context, const HrScreen()),
-      ),
-      _DeptTile(
-        icon: Icons.meeting_room_outlined,
-        iconColor: DashboardColors.iconTeal,
-        title: 'Frontoffice',
-        subtitle: '${d.frontoffice.totalCheckIn.toInt()} Check-ins',
-        revenue: CurrencyUtils.format(d.frontoffice.totalRevenue, currency),
-        onTap: () => _push(context, const FrontofficeScreen()),
-      ),
-    ];
   }
 
   void _push(BuildContext c, Widget screen) {
