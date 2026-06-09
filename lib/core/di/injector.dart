@@ -1,5 +1,6 @@
 import 'package:auto_injector/auto_injector.dart';
 
+import '../../data/repositories/device_token_repo.dart';
 import '../network/dio_client.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/dashboard_repository.dart';
@@ -18,10 +19,17 @@ final autoInjector = AutoInjector(
           i.get<DioClient>(),
           i.get<LocalStorageService>(),
         ));
-
+    i.addSingleton<DeviceTokenRepository>(
+      // ← ADD THIS
+      () => DeviceTokenRepository(i.get<DioClient>()), // ← ADD THIS
+    );
     // Blocs
     i.addSingleton<AuthBloc>(
-      () => AuthBloc(i.get<AuthRepository>(), i.get<LocalStorageService>()),
+      () => AuthBloc(
+        i.get<AuthRepository>(),
+        i.get<LocalStorageService>(),
+        i.get<DeviceTokenRepository>(),
+      ),
     );
     i.add<DashboardBloc>(() => DashboardBloc(i.get<DashboardRepository>()));
   },

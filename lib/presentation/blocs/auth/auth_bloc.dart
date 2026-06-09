@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/di/local_storage_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../../data/models/auth_data.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../data/repositories/device_token_repo.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  Events
@@ -44,7 +48,6 @@ class BranchSelected extends AuthEvent {
   List<Object?> get props => [branch];
 }
 
-// ── logout ──────────────────────────────────────────────────
 class LogoutRequested extends AuthEvent {
   const LogoutRequested();
 }
@@ -61,7 +64,7 @@ enum AuthStatus {
   branchSelected,
   failure,
   loggedOut,
-  loading
+  loading,
 }
 
 class AuthState extends Equatable {
@@ -102,12 +105,41 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   static const _tag = 'AuthBloc';
   final AuthRepository _repository;
   final LocalStorageService _storage;
+  final DeviceTokenRepository _deviceTokenRepo;
 
-  AuthBloc(this._repository, this._storage) : super(const AuthState()) {
+  StreamSubscription<String>? _tokenSub;
+
+  AuthBloc(this._repository, this._storage, this._deviceTokenRepo)
+      : super(const AuthState()) {
     on<BaseUrlSubmitted>(_onBaseUrlSubmitted);
     on<LoginSubmitted>(_onLoginSubmitted);
     on<BranchSelected>(_onBranchSelected);
     on<LogoutRequested>(_onLogout);
+
+    // Listen for FCM token rotations.
+    // Important: NotificationService.init() also emits the FIRST token on
+    // this stream at app startup. At that moment the user is usually not
+    // logged in yet, so the guard below short-circuits. That's correct —
+    // the actual first registration happens in _onLoginSubmitted after
+    // a successful login. This listener handles only true rotations
+    // while a user IS already logged in.
+    _tokenSub = NotificationService.tokenStream.listen((newToken) {
+      final userId = _storage.userId;
+      final authToken = _storage.authToken;
+      if (userId == null ||
+          userId.isEmpty ||
+          authToken == null ||
+          authToken.isEmpty) {
+        return; // not logged in — nothing to re-register
+      }
+      AppLogger.info(_tag, 'token rotated → re-registering with backend');
+      _deviceTokenRepo.registerDeviceToken(
+        userId: userId,
+        accountId: _storage.accountId ?? '',
+        authToken: authToken,
+        fcmToken: newToken,
+      );
+    });
   }
 
   Future<void> _onBaseUrlSubmitted(
@@ -161,6 +193,15 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         username: event.username,
       );
 
+      // Register the device's FCM token with the backend so it can
+      // target this user. Wrapped in try/catch so push registration
+      // failure doesn't block the login flow.
+      await _registerDeviceTokenIfAvailable(
+        userId: res.userId,
+        accountId: res.accountId,
+        authToken: res.authToken,
+      );
+
       emit(state.copyWith(
         status: AuthStatus.loginSuccess,
         branches: res.branchList,
@@ -174,6 +215,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
   }
 
+  /// Helper: attempt to register the current device's FCM token with the
+  /// backend. Silent failures by design — push setup must never block login.
+  Future<void> _registerDeviceTokenIfAvailable({
+    required String userId,
+    required String accountId,
+    required String authToken,
+  }) async {
+    final fcmToken = NotificationService.fcmToken;
+    if (fcmToken == null || fcmToken.isEmpty) {
+      AppLogger.info(_tag, 'no FCM token yet — skipping registration');
+      return;
+    }
+    try {
+      await _deviceTokenRepo.registerDeviceToken(
+        userId: userId,
+        accountId: accountId,
+        authToken: authToken,
+        fcmToken: fcmToken,
+      );
+    } catch (e) {
+      AppLogger.error(_tag, 'device token register failed: $e');
+    }
+  }
+
   Future<void> _onBranchSelected(
       BranchSelected event, Emitter<AuthState> emit) async {
     AppLogger.info(_tag, 'BranchSelected: ${event.branch.text}');
@@ -184,22 +249,44 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     ));
   }
 
-  // ── 4. The handler ───────────────────────────────────────────
   Future<void> _onLogout(LogoutRequested event, Emitter<AuthState> emit) async {
-    const tag = 'AuthBloc';
-    AppLogger.info(tag, 'logout requested');
+    AppLogger.info(_tag, 'logout requested');
 
-    // Grab credentials BEFORE clearing storage, since the API needs them.
+    // Grab credentials BEFORE clearing storage, since the APIs need them.
     final authToken = _storage.authToken ?? '';
     final userId = _storage.userId ?? '';
     final accountId = _storage.accountId ?? '';
     final uniqueId = _storage.uniqueId ?? '';
+    final fcmToken = NotificationService.fcmToken;
 
     emit(state.copyWith(status: AuthStatus.loading));
 
-    // Fire-and-forget the API call. Even if it fails, we always clear
-    // local storage — otherwise a logged-out user could be stuck with
-    // stale credentials.
+    // 1. Unregister this device from the backend so it stops pushing.
+    //    Requires userId + authToken + fcmToken to be present.
+    if (fcmToken != null &&
+        fcmToken.isNotEmpty &&
+        authToken.isNotEmpty &&
+        userId.isNotEmpty) {
+      try {
+        await _deviceTokenRepo.unregisterDeviceToken(
+          userId: userId,
+          authToken: authToken,
+          fcmToken: fcmToken,
+        );
+      } catch (e) {
+        AppLogger.error(_tag, 'device token unregister failed: $e');
+      }
+    }
+
+    // 2. Delete the local FCM token so a new one is issued for next login.
+    try {
+      await NotificationService.deleteToken();
+    } catch (e) {
+      AppLogger.error(_tag, 'FCM deleteToken failed: $e');
+    }
+
+    // 3. Call the logout API. Even if it fails, we still clear storage —
+    //    otherwise a logged-out user could be stuck with stale credentials.
     try {
       await _repository.logout(
         authToken: authToken,
@@ -208,15 +295,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         uniqueId: uniqueId,
       );
     } catch (e) {
-      AppLogger.error(tag, 'logout repo threw — clearing storage anyway',
+      AppLogger.error(_tag, 'logout repo threw — clearing storage anyway',
           error: e);
     }
 
-    // Wipe EVERYTHING — baseUrl, session, remember-me, all of it.
-    // User will see BaseUrlScreen on next launch.
+    // 4. Wipe EVERYTHING — baseUrl, session, remember-me, all of it.
+    //    User will see BaseUrlScreen on next launch.
     await _storage.clearAll();
 
     emit(state.copyWith(status: AuthStatus.loggedOut));
+  }
+
+  @override
+  Future<void> close() {
+    _tokenSub?.cancel();
+    return super.close();
   }
 
   /// Normalize URL:
