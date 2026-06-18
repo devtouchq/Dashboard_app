@@ -319,7 +319,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const Icon(Icons.cloud_off, color: Colors.white54, size: 40),
             const Gap(12),
             KStyles().reg(
-              text: 'Failed to load\n${state.errorMessage ?? ''}',
+              text: 'Failed to load\n Close the App and try again.',
               size: 13,
               color: Colors.redAccent,
               textAlign: TextAlign.center,

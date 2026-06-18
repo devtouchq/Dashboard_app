@@ -16,7 +16,7 @@ import 'presentation/screens/emr/emr_screen.dart';
 import 'presentation/screens/frontoffice/frontoffice_screen.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/hr/hr_screen.dart';
-import 'presentation/screens/lab/lab_screen.dart' show LabScreen;
+import 'presentation/screens/lab/lab_screen.dart';
 import 'presentation/screens/login/login_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';

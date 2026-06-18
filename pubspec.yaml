@@ -17,7 +17,7 @@ dependencies:
   flutter_bloc: ^8.1.6
   equatable: ^2.0.5
 
-  # Charts — switched from graphic to fl_chart
+  # Charts — fl_chart
   fl_chart: ^0.69.2
 
   # Networking

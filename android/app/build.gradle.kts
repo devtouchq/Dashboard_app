@@ -9,7 +9,7 @@ if (keystorePropertiesFile.exists()) {
 
 plugins {
     id("com.android.application")
-    id("kotlin-android")
+    //id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     // Add the dependency for the Google services Gradle plugin
@@ -26,6 +26,12 @@ coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
   // When using the BoM, don't specify versions in Firebase dependencies
   // https://firebase.google.com/docs/android/setup#available-libraries
 }
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+    }
+}
 android {
     namespace = "com.touchq.ayurlivedashboard"
     compileSdk = flutter.compileSdkVersion
@@ -37,9 +43,9 @@ android {
         isCoreLibraryDesugaringEnabled = true  
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_21.toString()
-    }
+    // kotlinOptions {
+    //     jvmTarget = JavaVersion.VERSION_21.toString()
+    // }
 
     defaultConfig {
 
@@ -48,7 +54,7 @@ android {
         applicationId = "com.touchq.ayurlivedashboard"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
