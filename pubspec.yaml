@@ -1,7 +1,7 @@
 name: ayurliv_dashboard
 description: Ayurliv Dashboard Flutter App
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -11,7 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
-  shared_preferences: ^2.3.2
+  #Sshared_preferences: ^2.3.2
+  shared_preferences: ^2.5.5
 
   # State management
   flutter_bloc: ^8.1.6

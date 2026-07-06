@@ -16,26 +16,21 @@ abstract class DashboardEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-/// Initial load — shows the loading spinner.
 class DashboardLoadRequested extends DashboardEvent {
   const DashboardLoadRequested();
 }
 
-/// Pull-to-refresh — does NOT show the spinner; previous data stays
-/// on screen until the new data arrives.
 class DashboardRefreshed extends DashboardEvent {
   const DashboardRefreshed();
 }
 
-/// Begin polling every `interval` seconds. Triggered when home becomes visible.
 class DashboardPollingStarted extends DashboardEvent {
   final Duration interval;
-  const DashboardPollingStarted({this.interval = const Duration(seconds: 5)});
+  const DashboardPollingStarted({this.interval = const Duration(seconds: 50)});
   @override
   List<Object?> get props => [interval];
 }
 
-/// Stop polling. Triggered when leaving the home screen.
 class DashboardPollingStopped extends DashboardEvent {
   const DashboardPollingStopped();
 }
@@ -80,6 +75,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final DashboardRepository _repository;
 
   Timer? _pollTimer;
+  int _requestSeq = 0;
 
   DashboardBloc(this._repository) : super(const DashboardState()) {
     on<DashboardLoadRequested>(_onLoad);
@@ -90,8 +86,8 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
   Future<void> _onLoad(
       DashboardLoadRequested event, Emitter<DashboardState> emit) async {
-    AppLogger.info(_tag, 'load (with spinner)');
-    emit(state.copyWith(status: DashboardStatus.loading));
+    AppLogger.info(_tag, 'load (with spinner) — clearing old data');
+    emit(const DashboardState(status: DashboardStatus.loading));
     await _fetch(emit);
   }
 
@@ -103,15 +99,45 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
   Future<void> _fetch(Emitter<DashboardState> emit,
       {bool silent = false}) async {
+    final myId = ++_requestSeq;
+
     try {
       final data = await _repository.fetchDashboard();
+
+      if (myId != _requestSeq) {
+        AppLogger.info(
+            _tag, 'stale response ignored (seq $myId vs $_requestSeq)');
+        return;
+      }
+
+      // Diagnostic log: what came back? Useful for figuring out why
+      // "No activity today" is showing when the server has data.
+      AppLogger.info(
+          _tag,
+          'fetch success — '
+          'tiles=${data.overview.sectionTiles.length}, '
+          'daily=${data.overview.sectionsDaily.length}, '
+          'totalRevenue=${data.overview.totalRevenue}');
+
+      // Log each daily section's revenue so we can see what the server sent.
+      for (final s in data.overview.sectionsDaily) {
+        AppLogger.info(_tag, '  daily[${s.name}] = ${s.totalRevenue}');
+      }
+      for (final t in data.overview.sectionTiles) {
+        AppLogger.info(
+            _tag, '  tile[${t.name}] count=${t.count} revenue=${t.revenue}');
+      }
+
       emit(state.copyWith(status: DashboardStatus.success, data: data));
     } catch (e, st) {
+      if (myId != _requestSeq) {
+        AppLogger.info(_tag, 'stale error ignored (seq $myId vs $_requestSeq)');
+        return;
+      }
+
       AppLogger.error(_tag, silent ? 'silent fetch failed' : 'fetch failed',
           error: e, stackTrace: st);
       if (silent && state.data != null) {
-        // Silent refresh: don't blow away the visible data on failure.
-        // Just log and keep the previous state.
         return;
       }
       emit(state.copyWith(

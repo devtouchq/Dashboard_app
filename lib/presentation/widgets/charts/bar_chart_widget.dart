@@ -23,6 +23,10 @@ class BarChartWidget extends StatefulWidget {
   final double height;
   final double rotateLabels;
 
+  /// Color used for bars whose value is negative.
+  /// Defaults to red so losses/negative values stand out.
+  final Color negativeColor;
+
   const BarChartWidget({
     super.key,
     required this.groups,
@@ -30,6 +34,7 @@ class BarChartWidget extends StatefulWidget {
     this.barWidth = 14,
     this.height = 220,
     this.rotateLabels = 0,
+    this.negativeColor = const Color(0xFFEF4444),
   });
 
   @override
@@ -82,13 +87,25 @@ class _BarChartWidgetState extends State<BarChartWidget>
       );
     }
 
-    double maxVal = 0;
+    // Scan for BOTH positive max and negative min. This lets the chart
+    // grow in both directions with the y=0 line as the axis.
+    double maxPos = 0;
+    double minNeg = 0;
     for (final g in widget.groups) {
       for (final v in g.values) {
-        if (v > maxVal) maxVal = v;
+        if (v > maxPos) maxPos = v;
+        if (v < minNeg) minNeg = v;
       }
     }
-    final maxY = maxVal == 0 ? 1.0 : maxVal * 1.15;
+
+    // Add 15% padding to each side so bars don't touch chart edges.
+    final maxY =
+        maxPos == 0 && minNeg == 0 ? 1.0 : (maxPos == 0 ? 0.0 : maxPos * 1.15);
+    final minY = minNeg == 0 ? 0.0 : minNeg * 1.15;
+
+    // Grid interval — split the total vertical range into ~4 lines.
+    final totalRange = maxY - minY;
+    final gridInterval = totalRange <= 0 ? 1.0 : totalRange / 4;
 
     return SizedBox(
       height: widget.height,
@@ -98,17 +115,28 @@ class _BarChartWidgetState extends State<BarChartWidget>
           return BarChart(
             BarChartData(
               maxY: maxY,
-              minY: 0,
+              minY: minY,
               alignment: BarChartAlignment.spaceAround,
               barGroups: _buildGroups(),
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
-                horizontalInterval: maxY / 4,
+                horizontalInterval: gridInterval,
                 getDrawingHorizontalLine: (_) => FlLine(
                   color: Colors.white.withValues(alpha: 0.06),
                   strokeWidth: 1,
                 ),
+              ),
+              // Prominent horizontal line at y=0 so the axis is visible
+              // when the chart has both positive and negative bars.
+              extraLinesData: ExtraLinesData(
+                horizontalLines: [
+                  HorizontalLine(
+                    y: 0,
+                    color: Colors.white.withValues(alpha: 0.28),
+                    strokeWidth: 1,
+                  ),
+                ],
               ),
               borderData: FlBorderData(show: false),
               titlesData: FlTitlesData(
@@ -144,8 +172,9 @@ class _BarChartWidgetState extends State<BarChartWidget>
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 34,
+                    reservedSize: 42,
                     getTitlesWidget: (value, meta) {
+                      // Don't render "0" as it's now the axis line itself.
                       if (value == 0) return const SizedBox.shrink();
                       return SideTitleWidget(
                         axisSide: meta.axisSide,
@@ -183,25 +212,39 @@ class _BarChartWidgetState extends State<BarChartWidget>
     );
   }
 
+  /// Build the bars. Bars with negative values render in `negativeColor`
+  /// (red by default) and grow downward from the 0-line. Positive bars
+  /// grow upward using `barColors` as before.
   List<BarChartGroupData> _buildGroups() {
     return List.generate(widget.groups.length, (gi) {
       final g = widget.groups[gi];
       final rods = List.generate(g.values.length, (si) {
         final start = (gi / widget.groups.length) * 0.4;
         final localT = ((_progress.value - start) / 0.6).clamp(0.0, 1.0);
-        final v = g.values[si] * localT;
 
-        final color =
-            g.colorOverride ?? widget.barColors[si % widget.barColors.length];
+        final rawValue = g.values[si];
+        // Animate from 0 toward the actual value — works for negatives too.
+        final v = rawValue * localT;
+
+        final isNegative = rawValue < 0;
+        final color = isNegative
+            ? widget.negativeColor
+            : (g.colorOverride ??
+                widget.barColors[si % widget.barColors.length]);
+
+        // Rounded corners on the far end (top for positive, bottom for negative).
+        final borderRadius = isNegative
+            ? const BorderRadius.vertical(bottom: Radius.circular(4))
+            : const BorderRadius.vertical(top: Radius.circular(4));
 
         return BarChartRodData(
           toY: v,
           width: widget.barWidth,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+          borderRadius: borderRadius,
           color: color,
           gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
+            begin: isNegative ? Alignment.topCenter : Alignment.bottomCenter,
+            end: isNegative ? Alignment.bottomCenter : Alignment.topCenter,
             colors: [color.withValues(alpha: 0.7), color],
           ),
         );
@@ -216,8 +259,10 @@ class _BarChartWidgetState extends State<BarChartWidget>
   }
 
   String _formatAxis(double value) {
-    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
-    if (value >= 1000) return '${(value / 1000).toStringAsFixed(0)}k';
-    return value.toStringAsFixed(0);
+    final abs = value.abs();
+    final sign = value < 0 ? '-' : '';
+    if (abs >= 1000000) return '$sign${(abs / 1000000).toStringAsFixed(1)}M';
+    if (abs >= 1000) return '$sign${(abs / 1000).toStringAsFixed(0)}k';
+    return '$sign${abs.toStringAsFixed(0)}';
   }
 }

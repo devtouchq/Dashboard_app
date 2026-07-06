@@ -25,7 +25,7 @@ class DeviceTokenRepository {
 
     try {
       await _client.dio.post(
-        '/api/Notification/RegisterDevice',
+        '/api/notification/RegisterDevice',
         data: {
           'UserId': userId,
           'AccountId': accountId,
@@ -52,7 +52,7 @@ class DeviceTokenRepository {
 
     try {
       await _client.dio.post(
-        '/api/Notification/UnregisterDevice',
+        '/api/notification/UnregisterDevice',
         data: {
           'UserId': userId,
           'AuthToken': authToken,
@@ -75,6 +75,6 @@ class DeviceTokenRepository {
 }
 
 // Helpful: in your injector.dart, register this:
-//   i.addSingleton<DeviceTokenRepository>(
-//     () => DeviceTokenRepository(i.get<DioClient>()),
-//   );
+  // i.addSingleton<DeviceTokenRepository>(
+  //   () => DeviceTokenRepository(i.get<DioClient>()),
+  // );

@@ -31,6 +31,7 @@ final autoInjector = AutoInjector(
         i.get<DeviceTokenRepository>(),
       ),
     );
+
     i.add<DashboardBloc>(() => DashboardBloc(i.get<DashboardRepository>()));
   },
 );

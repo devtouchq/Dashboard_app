@@ -201,10 +201,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         accountId: res.accountId,
         authToken: res.authToken,
       );
-
+      // Prepend an "ALL" pseudo-branch so the user can view a consolidated
+      // dashboard across every branch. The dashboard API receives "ALL" as
+      // the SubModule value and is expected to handle it server-side.
+      final branchesWithAll = <Branch>[
+        const Branch(text: 'ALL', value: 'ALL'),
+        ...res.branchList,
+      ];
       emit(state.copyWith(
         status: AuthStatus.loginSuccess,
-        branches: res.branchList,
+        branches: branchesWithAll,
       ));
     } catch (e, st) {
       AppLogger.error(_tag, 'login failed', error: e, stackTrace: st);
