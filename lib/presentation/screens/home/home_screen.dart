@@ -7,9 +7,12 @@ import 'package:gap/gap.dart';
 import '../../../core/constants/section_theme.dart';
 import '../../../core/constants/string_constants.dart';
 import '../../../core/constants/text_styles.dart';
+import '../../../core/di/local_storage_service.dart';
+import '../../../core/di/injector.dart';
 import '../../../core/services/notification_center_service.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../../core/utils/currency_utils.dart';
+import '../../../data/models/auth_data.dart';
 import '../../../data/models/dashboard_data.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/dashboard/dashboard_bloc.dart';
@@ -26,8 +29,6 @@ import '../lab/lab_screen.dart';
 import '../restaurant/restaurant_screen.dart';
 import '../store/store_screen.dart';
 
-/// Per-section visual config — icon, color, and the screen to open on tap.
-/// Keyed by the section `Name` returned by the API.
 class _SectionVisual {
   final IconData icon;
   final Color color;
@@ -94,9 +95,14 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static const _tag = 'HomeScreen';
   static const _colorRevenue = Color(0xFF4ADE80);
+  static const _colorNegative = Color(0xFFEF4444);
+
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   late final StreamSubscription<int> _unreadSub;
   int _unreadCount = NotificationCenterService().unreadCount;
+
+  String? _selectedBranchValue;
 
   @override
   void initState() {
@@ -104,12 +110,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     AppLogger.info(_tag, 'initState — start polling');
     WidgetsBinding.instance.addObserver(this);
 
+    final storage = autoInjector.get<LocalStorageService>();
+    _selectedBranchValue = storage.selectedBranch;
+
     _unreadSub = NotificationCenterService().stream.listen((count) {
       if (mounted) setState(() => _unreadCount = count);
     });
 
     context.read<DashboardBloc>().add(
-          const DashboardPollingStarted(interval: Duration(seconds: 5)),
+          const DashboardPollingStarted(interval: Duration(seconds: 50)),
         );
   }
 
@@ -137,15 +146,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       });
       context.read<DashboardBloc>().add(
-            const DashboardPollingStarted(interval: Duration(seconds: 5)),
+            const DashboardPollingStarted(interval: Duration(seconds: 50)),
           );
     }
   }
 
+  Future<void> _onBranchChanged(Branch newBranch) async {
+    AppLogger.info(_tag, 'branch switched → ${newBranch.text}');
+
+    final storage = autoInjector.get<LocalStorageService>();
+    await storage.setSelectedBranch(newBranch.value);
+
+    if (!mounted) return;
+    setState(() => _selectedBranchValue = newBranch.value);
+
+    final bloc = context.read<DashboardBloc>();
+    bloc.add(const DashboardPollingStopped());
+    bloc.add(const DashboardLoadRequested());
+    bloc.add(const DashboardPollingStarted(interval: Duration(seconds: 50)));
+
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = SectionTheme.home;
+    const theme = SectionTheme.home;
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _buildDrawer(context),
       extendBodyBehindAppBar: true,
       backgroundColor: theme.backgroundGradient[0],
       body: Container(
@@ -184,23 +212,155 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildDrawer(BuildContext context) {
+    return BlocBuilder<AuthBloc, AuthState>(
+      buildWhen: (a, b) => a.branches != b.branches,
+      builder: (context, authState) {
+        final branches = authState.branches;
+        return Drawer(
+          backgroundColor: const Color(0xFF1F2937),
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: SectionTheme.home.backgroundGradient[0]
+                              .withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1)),
+                        ),
+                        child: const Icon(Icons.dashboard_outlined,
+                            color: Colors.white, size: 22),
+                      ),
+                      const Gap(12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            KStyles().bold(
+                              text: 'Ayurliv Dashboard',
+                              size: 14,
+                              color: DashboardColors.textOnDark,
+                            ),
+                            const Gap(2),
+                            KStyles().reg(
+                              text: 'Switch branch',
+                              size: 11,
+                              color: DashboardColors.textOnDarkMuted,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  height: 1,
+                ),
+                const Gap(12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: KStyles().semiBold(
+                    text: 'BRANCH',
+                    size: 10,
+                    color: DashboardColors.textOnDarkMuted,
+                  ),
+                ),
+                const Gap(8),
+                if (branches.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: KStyles().reg(
+                      text: 'No branches available',
+                      size: 12,
+                      color: DashboardColors.textOnDarkMuted,
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      itemCount: branches.length,
+                      itemBuilder: (_, i) {
+                        final b = branches[i];
+                        final isSelected = b.value == _selectedBranchValue;
+                        return _BranchTile(
+                          branch: b,
+                          isSelected: isSelected,
+                          onTap: isSelected ? null : () => _onBranchChanged(b),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _body(BuildContext context, DashboardState state, SectionTheme theme) {
-    if (state.data == null) {
+    // Loading — spinner regardless of stale data.
+    if (state.status == DashboardStatus.loading || state.data == null) {
       if (state.status == DashboardStatus.failure) {
         return _errorView(context, state);
       }
-      return const Center(
-          child: CircularProgressIndicator(color: Colors.white));
+      return _loadingView();
     }
+
     final data = state.data!;
     final currency = data.currency.defaultCurrency;
 
-    // Active tiles: count > 0 OR revenue > 0.
+    // Independently detect what each section has data for. This avoids
+    // the "response arrived but shows No activity today" bug where the
+    // server returns chart data (sectionsDaily) but no tile data
+    // (sectionTiles) — as happens for the ALL branch aggregation.
+
+    // Tiles: any tile with non-zero count OR non-zero revenue.
     final activeTiles = data.overview.sectionTiles
         .where((t) => t.count != 0 || t.revenue != 0)
         .toList();
 
-    final allEmpty = activeTiles.isEmpty;
+    // Chart data: any daily section with non-zero revenue (positive OR negative).
+    final dailyWithData = data.overview.sectionsDaily
+        .where((s) => s.totalRevenue != 0)
+        .toList();
+
+    // Summary: overall total (positive or negative — any non-zero counts).
+    final totalRevenue = data.overview.totalRevenue;
+    final hasSummaryData = totalRevenue != 0;
+
+    // "Truly empty" means every source is empty. Only then show the
+    // welcoming empty-state screen.
+    final hasAnyData =
+        activeTiles.isNotEmpty || dailyWithData.isNotEmpty || hasSummaryData;
+
+    if (!hasAnyData) {
+      return RefreshIndicator(
+        onRefresh: () async {
+          context.read<DashboardBloc>().add(const DashboardRefreshed());
+          await Future.delayed(const Duration(milliseconds: 600));
+        },
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            _welcomeHero(theme, currency),
+            const Gap(20),
+            _noActivityState(),
+          ],
+        ),
+      );
+    }
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -212,12 +372,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         children: [
           _welcomeHero(theme, currency),
           const Gap(20),
-          if (allEmpty) ...[
-            _noActivityState(),
-          ] else ...[
-            _revenueChart(data.overview.sectionsDaily, activeTiles),
+
+          // Chart — only if we have daily data with non-zero revenue.
+          if (dailyWithData.isNotEmpty) ...[
+            _revenueChart(dailyWithData),
             const Gap(14),
-            _summaryCard(data.overview, currency),
+          ],
+
+          // Summary — always show if we have any data at all.
+          _summaryCard(totalRevenue, currency),
+
+          // Departments header + tiles — only if we have active tiles.
+          if (activeTiles.isNotEmpty) ...[
             const Gap(22),
             _departmentsHeader(),
             const Gap(12),
@@ -228,19 +394,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  // ─── Department tiles — driven entirely by SectionTiles ──────────
+  Widget _loadingView() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(color: Colors.white),
+          const Gap(14),
+          KStyles().reg(
+            text: 'Loading branch data...',
+            size: 12,
+            color: DashboardColors.textOnDarkMuted,
+          ),
+        ],
+      ),
+    );
+  }
+
   List<Widget> _departmentTiles(
       BuildContext context, List<SectionTile> tiles, String currency) {
     return tiles.map((tile) {
       final visual = _sectionVisuals[tile.name];
+      final revenue = tile.revenue;
+
       if (visual == null) {
-        // Unknown section name — render a neutral tile.
         return _DeptTile(
           icon: Icons.dashboard_outlined,
           iconColor: Colors.grey,
           title: tile.name,
           subtitle: '${_fmtCount(tile.count)} ${tile.countLabel}',
-          revenue: CurrencyUtils.format(tile.revenue, currency),
+          revenue: revenue,
+          currency: currency,
           onTap: () {},
         );
       }
@@ -249,13 +433,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         iconColor: visual.color,
         title: tile.name,
         subtitle: '${_fmtCount(tile.count)} ${tile.countLabel}',
-        revenue: CurrencyUtils.format(tile.revenue, currency),
+        revenue: revenue,
+        currency: currency,
         onTap: () => _push(context, visual.screen()),
       );
     }).toList();
   }
 
-  /// Drop trailing .0 on whole numbers — "1" not "1.0".
   String _fmtCount(double v) {
     if (v == v.truncate()) return v.toInt().toString();
     return v.toString();
@@ -310,29 +494,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _errorView(BuildContext context, DashboardState state) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off, color: Colors.white54, size: 40),
-            const Gap(12),
-            KStyles().reg(
-              text: 'Failed to load\n Close the App and try again.',
-              size: 13,
-              color: Colors.redAccent,
-              textAlign: TextAlign.center,
-            ),
-            const Gap(16),
-            ElevatedButton(
-              onPressed: () => context
-                  .read<DashboardBloc>()
-                  .add(const DashboardLoadRequested()),
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
+    final rawError = state.errorMessage ?? '';
+    final firstLine = rawError.split('\n').first.trim();
+    final display = firstLine.length > 200
+        ? '${firstLine.substring(0, 200)}...'
+        : firstLine;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off, color: Colors.white54, size: 40),
+          const Gap(12),
+          KStyles().bold(
+            text: 'Failed to load',
+            size: 15,
+            color: Colors.redAccent,
+          ),
+          const Gap(8),
+          KStyles().reg(
+            text: display,
+            size: 12,
+            color: DashboardColors.textOnDarkMuted,
+            textAlign: TextAlign.center,
+          ),
+          const Gap(20),
+          ElevatedButton.icon(
+            onPressed: () => context
+                .read<DashboardBloc>()
+                .add(const DashboardLoadRequested()),
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Retry'),
+          ),
+        ],
       ),
     );
   }
@@ -343,6 +538,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Row(
         children: [
+          IconButton(
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            icon: const Icon(Icons.menu,
+                color: DashboardColors.textOnDark, size: 26),
+            tooltip: 'Switch branch',
+          ),
           Expanded(
             child: Center(
               child: Row(
@@ -546,38 +747,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Show only the SectionsDaily entries whose section is also in the
-  /// active tiles. The daily list uses 'HrManager' and 'FrontOffice'
-  /// while tiles use 'HR' and 'Frontoffice', so we normalize here.
-  Widget _revenueChart(
-      List<SectionDaily> daily, List<SectionTile> activeTiles) {
-    String norm(String n) {
-      if (n == 'HrManager') return 'HR';
-      if (n == 'FrontOffice') return 'Frontoffice';
-      return n;
-    }
-
-    final activeNames = activeTiles.map((t) => t.name).toSet();
-    final filtered =
-        daily.where((s) => activeNames.contains(norm(s.name))).toList();
-
+  /// Chart — expects a pre-filtered list of SectionDaily entries that
+  /// have non-zero revenue. Doesn't depend on `activeTiles` anymore, so
+  /// it still shows when the server returns daily data but no tile data
+  /// (e.g. for the ALL aggregation).
+  Widget _revenueChart(List<SectionDaily> daily) {
     return ChartCard(
       title: "Today's Revenue by Section",
       child: BarChartWidget(
-        groups: filtered
+        groups: daily
             .map((s) => BarGroup(label: s.name, values: [s.totalRevenue]))
             .toList(),
         barColors: const [_colorRevenue],
+        negativeColor: _colorNegative,
         barWidth: 9,
-        height: 280,
+        height: 300,
         rotateLabels: -0.5,
       ),
     );
   }
 
-  /// Summary = sum of TotalRevenue across all SectionsDaily entries.
-  Widget _summaryCard(OverviewData overview, String currency) {
-    final revenue = overview.totalRevenue;
+  Widget _summaryCard(double revenue, String currency) {
+    final isNegative = revenue < 0;
+    final displayColor = isNegative ? _colorNegative : _colorRevenue;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -591,11 +784,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: _colorRevenue.withValues(alpha: 0.2),
+              color: displayColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
-            child:
-                const Icon(Icons.trending_up, color: _colorRevenue, size: 24),
+            child: Icon(
+              isNegative ? Icons.trending_down : Icons.trending_up,
+              color: displayColor,
+              size: 24,
+            ),
           ),
           const Gap(14),
           Expanded(
@@ -611,7 +807,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 KStyles().bold(
                   text: CurrencyUtils.format(revenue, currency),
                   size: 22,
-                  color: DashboardColors.textOnDark,
+                  color: isNegative
+                      ? _colorNegative
+                      : DashboardColors.textOnDark,
                 ),
               ],
             ),
@@ -643,12 +841,91 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 }
 
+class _BranchTile extends StatelessWidget {
+  final Branch branch;
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  const _BranchTile({
+    required this.branch,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isSelected
+        ? SectionTheme.home.backgroundGradient[0].withValues(alpha: 0.18)
+        : Colors.transparent;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Material(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF4ADE80).withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.business_outlined,
+                    size: 16,
+                    color: isSelected
+                        ? const Color(0xFF4ADE80)
+                        : DashboardColors.textOnDarkMuted,
+                  ),
+                ),
+                const Gap(12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      KStyles().semiBold(
+                        text: branch.text,
+                        size: 13,
+                        color: DashboardColors.textOnDark,
+                      ),
+                      const Gap(2),
+                      KStyles().reg(
+                        text: branch.value,
+                        size: 10,
+                        color: DashboardColors.textOnDarkMuted,
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  const Icon(Icons.check_circle,
+                      color: Color(0xFF4ADE80), size: 18),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DeptTile extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final String title;
   final String subtitle;
-  final String revenue;
+  final double revenue;
+  final String currency;
   final VoidCallback onTap;
 
   const _DeptTile({
@@ -657,11 +934,15 @@ class _DeptTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.revenue,
+    required this.currency,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isNegative = revenue < 0;
+    const negativeColor = Color(0xFFEF4444);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: InkWell(
@@ -709,9 +990,10 @@ class _DeptTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   KStyles().bold(
-                    text: revenue,
+                    text: CurrencyUtils.format(revenue, currency),
                     size: 14,
-                    color: DashboardColors.textOnDark,
+                    color:
+                        isNegative ? negativeColor : DashboardColors.textOnDark,
                   ),
                   KStyles().reg(
                     text: StringConstants.revenueLabel,
