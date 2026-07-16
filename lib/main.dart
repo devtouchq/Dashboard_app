@@ -41,9 +41,10 @@ Future<void> main() async {
   // Initialize app dependencies (your existing setup).
   await setupDependencies();
 
-// NEW — initialize unread badge service BEFORE NotificationService
+  // Initialize unread badge service BEFORE NotificationService
   // so the badge count is loaded when notifications start arriving.
   await NotificationCenterService().init();
+
   // Initialize the notification service after Firebase is ready.
   await NotificationService.init();
 
@@ -63,7 +64,7 @@ class AyurlivApp extends StatelessWidget {
     return BlocProvider<AuthBloc>(
       create: (_) => autoInjector.get<AuthBloc>(),
       child: MaterialApp(
-        navigatorKey: NotificationService.navigatorKey, // ADD THIS
+        navigatorKey: NotificationService.navigatorKey,
         title: StringConstants.appName,
         debugShowCheckedModeBanner: false,
         // theme: AppTheme.light,
@@ -93,16 +94,39 @@ class AyurlivApp extends StatelessWidget {
 ///   3. baseUrl + session + no branch → LoginScreen (re-pick branch)
 ///   4. Fully authenticated           → HomeScreen
 ///
+/// Also fires AuthBootstrapped once on mount so AuthBloc rehydrates
+/// persisted state (branch list) — this is why the drawer wasn't showing
+/// branches on cold start before.
+///
 /// Notes:
 ///  • This runs ONLY on cold start. Once you're past this gate, normal
 ///    Navigator pushes/pops apply.
 ///  • "Remember me" prefilling is handled inside LoginScreen — even if
 ///    the session was cleared (logout / token expiry), the saved Account
 ///    ID + Username come back in the form for one-tap login.
-class _RouteGate extends StatelessWidget {
+class _RouteGate extends StatefulWidget {
   const _RouteGate();
 
+  @override
+  State<_RouteGate> createState() => _RouteGateState();
+}
+
+class _RouteGateState extends State<_RouteGate> {
   static const _tag = 'RouteGate';
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Rehydrate persisted auth state (branch list) so the drawer isn't
+    // empty when the user opens the app on Day 2 without re-logging in.
+    // Runs once per app cold-start.
+    //
+    // Note: no-op if there are no persisted branches (e.g. very first
+    // launch or after logout). AuthBloc just logs "no persisted branches"
+    // and does nothing else.
+    context.read<AuthBloc>().add(const AuthBootstrapped());
+  }
 
   @override
   Widget build(BuildContext context) {

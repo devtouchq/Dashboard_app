@@ -18,6 +18,8 @@ import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/dashboard/dashboard_bloc.dart';
 import '../../widgets/chart_card.dart';
 import '../../widgets/charts/bar_chart_widget.dart';
+import '../../widgets/charts/donut.dart';
+import '../../widgets/charts/waterfall.dart';
 import '../accounts/accounts_screen.dart';
 import '../banquet/banquet_screen.dart';
 import '../bar/bar_screen.dart';
@@ -332,9 +334,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .toList();
 
     // Chart data: any daily section with non-zero revenue (positive OR negative).
-    final dailyWithData = data.overview.sectionsDaily
-        .where((s) => s.totalRevenue != 0)
-        .toList();
+    final dailyWithData =
+        data.overview.sectionsDaily.where((s) => s.totalRevenue != 0).toList();
 
     // Summary: overall total (positive or negative — any non-zero counts).
     final totalRevenue = data.overview.totalRevenue;
@@ -751,21 +752,117 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// have non-zero revenue. Doesn't depend on `activeTiles` anymore, so
   /// it still shows when the server returns daily data but no tile data
   /// (e.g. for the ALL aggregation).
+  // Widget _revenueChart(List<SectionDaily> daily) {
+  //   return ChartCard(
+  //     title: "Today's Revenue by Section",
+  //     child: BarChartWidget(
+  //       groups: daily
+  //           .map((s) => BarGroup(label: s.name, values: [s.totalRevenue]))
+  //           .toList(),
+  //       barColors: const [_colorRevenue],
+  //       negativeColor: _colorNegative,
+  //       barWidth: 9,
+  //       height: 300,
+  //       rotateLabels: -0.5,
+  //     ),
+  //   );
+  // }
+  //todo
+  /// Donut chart of positive revenue by section, with a separate list
+  /// below showing any negative (loss) sections. Uses each section's
+  /// brand color from `_sectionVisuals` so the colors match the tiles.
   Widget _revenueChart(List<SectionDaily> daily) {
+    String norm(String n) {
+      if (n == 'HrManager') return 'HR';
+      if (n == 'FrontOffice') return 'Frontoffice';
+      return n;
+    }
+
+    // Build slices using each section's brand color. Fallback color
+    // used for sections without an entry in _sectionVisuals.
+    const fallbackColors = [
+      Color(0xFF4ADE80),
+      Color(0xFF60A5FA),
+      Color(0xFFF59E0B),
+      Color(0xFFA78BFA),
+      Color(0xFFEC4899),
+      Color(0xFF14B8A6),
+    ];
+
+    final slices = <DonutSlice>[];
+    for (var i = 0; i < daily.length; i++) {
+      final s = daily[i];
+      final normName = norm(s.name);
+      final brandColor = _sectionVisuals[normName]?.color ??
+          fallbackColors[i % fallbackColors.length];
+
+      slices.add(DonutSlice(
+        label: s.name,
+        value: s.totalRevenue,
+        color: brandColor,
+      ));
+    }
+
     return ChartCard(
       title: "Today's Revenue by Section",
-      child: BarChartWidget(
-        groups: daily
-            .map((s) => BarGroup(label: s.name, values: [s.totalRevenue]))
-            .toList(),
-        barColors: const [_colorRevenue],
+      child: DonutChartWidget(
+        slices: slices,
+        currency: _currencyForBloc(),
         negativeColor: _colorNegative,
-        barWidth: 9,
-        height: 300,
-        rotateLabels: -0.5,
+        size: 200,
+        centerSubtitle: 'Positive Revenue',
       ),
     );
   }
+
+  /// Small helper — reads currency from the current DashboardBloc state.
+  /// Extracted because DonutChartWidget needs to format currency itself.
+  String _currencyForBloc() {
+    final state = context.read<DashboardBloc>().state;
+    return state.data?.currency.defaultCurrency ?? 'INR';
+  }
+  //todo
+  /// Waterfall chart: shows how each section adds up (or subtracts) to
+  /// the day's net revenue. Green bars for gains, red for losses, and a
+  /// grounded blue bar at the end for the running total.
+  // Widget _revenueChart(List<SectionDaily> daily) {
+  //   final steps = daily
+  //       .map((s) => WaterfallStep(label: s.name, value: s.totalRevenue))
+  //       .toList();
+
+  //   final currency = _currencyForBloc();
+
+  //   return ChartCard(
+  //     title: "Today's Revenue Breakdown",
+  //     child: Column(
+  //       children: [
+  //         WaterfallChartWidget(
+  //           steps: steps,
+  //           currency: currency,
+  //           positiveColor: _colorRevenue,
+  //           negativeColor: _colorNegative,
+  //           totalColor: const Color(0xFF60A5FA),
+  //           height: 320,
+  //           barWidth: 22,
+  //           totalLabel: 'Net',
+  //         ),
+  //         const Gap(10),
+  //         const WaterfallLegend(
+  //           positiveColor: Color(0xFF4ADE80),
+  //           negativeColor: Color(0xFFEF4444),
+  //           totalColor: Color(0xFF60A5FA),
+  //           totalLabel: 'Net',
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  // /// Small helper — reads currency from the current DashboardBloc state.
+  // String _currencyForBloc() {
+  //   final state = context.read<DashboardBloc>().state;
+  //   return state.data?.currency.defaultCurrency ?? 'INR';
+  // }
 
   Widget _summaryCard(double revenue, String currency) {
     final isNegative = revenue < 0;
@@ -807,9 +904,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 KStyles().bold(
                   text: CurrencyUtils.format(revenue, currency),
                   size: 22,
-                  color: isNegative
-                      ? _colorNegative
-                      : DashboardColors.textOnDark,
+                  color:
+                      isNegative ? _colorNegative : DashboardColors.textOnDark,
                 ),
               ],
             ),

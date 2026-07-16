@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../data/models/auth_data.dart';
 import '../utils/app_logger.dart';
 
 /// Single point of access for everything we persist on the device.
@@ -18,6 +21,7 @@ class LocalStorageService {
   static const _kRememberMe = 'remember_me';
   static const _kSavedUsername = 'saved_username';
   static const _kSavedAccountId = 'saved_account_id';
+  static const _kBranchList = 'branch_list';
 
   late final SharedPreferences _prefs;
 
@@ -76,6 +80,34 @@ class LocalStorageService {
 
   String? get selectedBranch => _prefs.getString(_kSelectedBranch);
 
+  /// Persist the branch list so it survives cold-starts (when the user
+  /// doesn't need to log in again). Called from AuthBloc after login.
+  Future<void> setBranchList(List<Branch> branches) async {
+    final jsonList =
+        branches.map((b) => {'text': b.text, 'value': b.value}).toList();
+    await _prefs.setString(_kBranchList, jsonEncode(jsonList));
+    AppLogger.info(_tag, 'setBranchList: ${branches.length} branches');
+  }
+
+  /// Read the persisted branch list. Returns empty list if none saved.
+  /// Called at cold-start from AuthBloc's bootstrap handler.
+  List<Branch> get branchList {
+    final raw = _prefs.getString(_kBranchList);
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw) as List;
+      return decoded.map((e) {
+        final map = e as Map;
+        return Branch(
+          text: map['text']?.toString() ?? '',
+          value: map['value']?.toString() ?? '',
+        );
+      }).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   // ─── Remember me ─────────────────────────────────────────
   Future<void> setRememberMe({
     required bool remember,
@@ -117,5 +149,6 @@ class LocalStorageService {
   Future<void> clearAll() async {
     AppLogger.info(_tag, 'clearAll');
     await _prefs.clear();
+    await _prefs.remove(_kBranchList);
   }
 }

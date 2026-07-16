@@ -42,7 +42,7 @@ class ChartCard extends StatelessWidget {
             size: 14,
             color: DashboardColors.textOnDark,
           ),
-          const Gap(14),
+          const Gap(30),
           child,
         ],
       ),

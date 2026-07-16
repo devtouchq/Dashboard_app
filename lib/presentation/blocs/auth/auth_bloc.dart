@@ -52,6 +52,13 @@ class LogoutRequested extends AuthEvent {
   const LogoutRequested();
 }
 
+/// Fired on app startup (from RouteGate) to rehydrate persisted state
+/// like the branch list — so the drawer isn't empty when the user opens
+/// the app the next day without going through login again.
+class AuthBootstrapped extends AuthEvent {
+  const AuthBootstrapped();
+}
+
 // ─────────────────────────────────────────────────────────────
 //  State
 // ─────────────────────────────────────────────────────────────
@@ -115,6 +122,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<LoginSubmitted>(_onLoginSubmitted);
     on<BranchSelected>(_onBranchSelected);
     on<LogoutRequested>(_onLogout);
+    on<AuthBootstrapped>(_onBootstrapped);
 
     // Listen for FCM token rotations.
     // Important: NotificationService.init() also emits the FIRST token on
@@ -140,6 +148,22 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         fcmToken: newToken,
       );
     });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Rehydrate persisted state on app cold-start.
+  //  Called from RouteGate before deciding which screen to show.
+  // ─────────────────────────────────────────────────────────────
+  Future<void> _onBootstrapped(
+      AuthBootstrapped event, Emitter<AuthState> emit) async {
+    final savedBranches = _storage.branchList;
+    if (savedBranches.isNotEmpty) {
+      AppLogger.info(
+          _tag, 'bootstrap: restoring ${savedBranches.length} branches');
+      emit(state.copyWith(branches: savedBranches));
+    } else {
+      AppLogger.info(_tag, 'bootstrap: no persisted branches');
+    }
   }
 
   Future<void> _onBaseUrlSubmitted(
@@ -201,6 +225,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         accountId: res.accountId,
         authToken: res.authToken,
       );
+
       // Prepend an "ALL" pseudo-branch so the user can view a consolidated
       // dashboard across every branch. The dashboard API receives "ALL" as
       // the SubModule value and is expected to handle it server-side.
@@ -208,6 +233,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         const Branch(text: 'ALL', value: 'ALL'),
         ...res.branchList,
       ];
+
+      // PERSIST branches so cold-starts (no fresh login) can restore them
+      // via AuthBootstrapped. Without this, the drawer would be empty
+      // the next time the user opens the app.
+      await _storage.setBranchList(branchesWithAll);
+
       emit(state.copyWith(
         status: AuthStatus.loginSuccess,
         branches: branchesWithAll,
@@ -268,7 +299,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(state.copyWith(status: AuthStatus.loading));
 
     // 1. Unregister this device from the backend so it stops pushing.
-    //    Requires userId + authToken + fcmToken to be present.
     if (fcmToken != null &&
         fcmToken.isNotEmpty &&
         authToken.isNotEmpty &&
@@ -305,11 +335,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           error: e);
     }
 
-    // 4. Wipe EVERYTHING — baseUrl, session, remember-me, all of it.
+    // 4. Wipe EVERYTHING — baseUrl, session, remember-me, branches.
     //    User will see BaseUrlScreen on next launch.
     await _storage.clearAll();
 
-    emit(state.copyWith(status: AuthStatus.loggedOut));
+    // Also clear the in-memory branches state so the drawer is empty
+    // right away (not just on next cold-start).
+    emit(const AuthState(status: AuthStatus.loggedOut));
   }
 
   @override
@@ -318,12 +350,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     return super.close();
   }
 
-  /// Normalize URL:
-  /// - trim, strip trailing slashes
-  /// - if no scheme present:
-  ///     * LAN IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x) → http://
-  ///     * localhost → http://
-  ///     * everything else → https://
+  /// Normalize URL — same as before, no changes.
   String _cleanUrl(String input) {
     var u = input.trim();
     while (u.endsWith('/')) {
@@ -333,14 +360,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       return u;
     }
 
-    // Extract the host part (everything up to the first '/' or ':')
     var host = u;
     final slashIdx = host.indexOf('/');
     if (slashIdx >= 0) host = host.substring(0, slashIdx);
     final colonIdx = host.indexOf(':');
     if (colonIdx >= 0) host = host.substring(0, colonIdx);
 
-    // LAN ranges → HTTP (almost always)
     final isLocalHost = host == 'localhost' || host == '127.0.0.1';
     final isPrivateIp = _isPrivateIp(host);
 
@@ -348,7 +373,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     return '$scheme://$u';
   }
 
-  /// Returns true for RFC 1918 private IPs and link-local 169.254.x.x.
   bool _isPrivateIp(String host) {
     final parts = host.split('.');
     if (parts.length != 4) return false;
@@ -356,10 +380,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     if (nums.any((n) => n == null || n < 0 || n > 255)) return false;
     final a = nums[0]!;
     final b = nums[1]!;
-    if (a == 10) return true; // 10.0.0.0/8
-    if (a == 192 && b == 168) return true; // 192.168.0.0/16
-    if (a == 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
-    if (a == 169 && b == 254) return true; // link-local
+    if (a == 10) return true;
+    if (a == 192 && b == 168) return true;
+    if (a == 172 && b >= 16 && b <= 31) return true;
+    if (a == 169 && b == 254) return true;
     return false;
   }
 }
