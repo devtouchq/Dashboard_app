@@ -128,6 +128,22 @@ class EmrData extends Equatable {
             const [],
       );
 
+  /// True if this section has ANY meaningful activity to display.
+  /// Excludes "always populated" background stats like ipAdmittedAllTime
+  /// and gender split — those are historical, not "today's activity".
+  bool get hasActivity =>
+      totalPatients != 0 ||
+      appointments != 0 ||
+      activeCases != 0 ||
+      outpatientCount != 0 ||
+      inpatientCount != 0 ||
+      newPatientCount != 0 ||
+      repeatPatientCount != 0 ||
+      totalRevenue != 0 ||
+      opAdvanceAmount != 0 ||
+      opBillAmount != 0 ||
+      doctorPatients.any((d) => d.currMonthPatients != 0);
+
   @override
   List<Object?> get props => [
         totalPatients,
@@ -156,6 +172,7 @@ class AccountsData extends Equatable {
   final double totalDebitors;
   final double totalReceipts;
   final double totalCollection;
+  final double totalCreditors;
 
   const AccountsData({
     required this.totalPayments,
@@ -163,6 +180,7 @@ class AccountsData extends Equatable {
     required this.totalDebitors,
     required this.totalReceipts,
     required this.totalCollection,
+    required this.totalCreditors,
   });
 
   factory AccountsData.fromJson(Map<String, dynamic> j) => AccountsData(
@@ -171,7 +189,20 @@ class AccountsData extends Equatable {
         totalDebitors: _toD(j['TotalDebitors']),
         totalReceipts: _toD(j['TotalReceipts']),
         totalCollection: _toD(j['TotalCollection']),
+        totalCreditors: _toD(j['TotalCreditors']),
       );
+
+  /// True if Accounts has any activity worth showing. Note that
+  /// TotalCreditors and TotalDebitors are historical balances, not
+  /// today's activity — they're still counted here because non-zero
+  /// balances indicate meaningful account state.
+  bool get hasActivity =>
+      totalPayments != 0 ||
+      totalRevenue != 0 ||
+      totalDebitors != 0 ||
+      totalReceipts != 0 ||
+      totalCollection != 0 ||
+      totalCreditors != 0;
 
   @override
   List<Object?> get props => [
@@ -179,7 +210,8 @@ class AccountsData extends Equatable {
         totalRevenue,
         totalDebitors,
         totalReceipts,
-        totalCollection
+        totalCollection,
+        totalCreditors
       ];
 }
 
@@ -206,6 +238,9 @@ class StoreSales extends Equatable {
         export: _toD(j['Export']),
       );
 
+  bool get hasActivity =>
+      totalSales != 0 || insideKerala != 0 || outsideKerala != 0 || export != 0;
+
   @override
   List<Object?> get props => [totalSales, insideKerala, outsideKerala, export];
 }
@@ -226,6 +261,9 @@ class StorePurchase extends Equatable {
         totalRemittance: _toD(j['TotalRemittance']),
         pending: _toD(j['Pending']),
       );
+
+  bool get hasActivity =>
+      totalPurchase != 0 || totalRemittance != 0 || pending != 0;
 
   @override
   List<Object?> get props => [totalPurchase, totalRemittance, pending];
@@ -259,6 +297,15 @@ class StoreData extends Equatable {
         wipPercentage:
             _toS((j['Wip'] as Map?)?['WipAveragePercentage'] ?? '0%'),
       );
+
+  /// True if Store has any activity. Ignores wipPercentage — "0%" is
+  /// still a valid "no work-in-progress" value, not activity.
+  bool get hasActivity =>
+      totalRevenue != 0 ||
+      totalCollection != 0 ||
+      purchase != 0 ||
+      sales.hasActivity ||
+      purchaseSummary.hasActivity;
 
   @override
   List<Object?> get props => [
@@ -323,6 +370,11 @@ class BarData extends Equatable {
     );
   }
 
+  bool get hasActivity =>
+      totalRevenue != 0 ||
+      totalCollection != 0 ||
+      itemTotals.any((i) => i.amount != 0);
+
   @override
   List<Object?> get props => [totalRevenue, totalCollection, itemTotals];
 }
@@ -352,6 +404,9 @@ class LabData extends Equatable {
         totalCollection: _toD(j['labelTotalCollectionLab']),
       );
 
+  bool get hasActivity =>
+      testCount != 0 || totalRevenue != 0 || totalCollection != 0;
+
   @override
   List<Object?> get props => [testCount, totalRevenue, totalCollection];
 }
@@ -378,6 +433,12 @@ class RestaurantData extends Equatable {
         totalRevenue: _toD(j['TotalRevenueRestaurant']),
         totalCollection: _toD(j['TotalCollectionRestaurant']),
       );
+
+  bool get hasActivity =>
+      totalPax != 0 ||
+      runningTableCount != 0 ||
+      totalRevenue != 0 ||
+      totalCollection != 0;
 
   @override
   List<Object?> get props =>
@@ -407,6 +468,11 @@ class HrData extends Equatable {
         totalRevenue: _toD(j['TotalRevenueHr']),
       );
 
+  /// True if HR has any activity — attendance or revenue. lastSyncedTime
+  /// is metadata, not activity, so it's excluded.
+  bool get hasActivity =>
+      totalPresent != 0 || totalAbsent != 0 || totalRevenue != 0;
+
   @override
   List<Object?> get props =>
       [totalPresent, totalAbsent, lastSyncedTime, totalRevenue];
@@ -431,6 +497,9 @@ class BanquetData extends Equatable {
         totalFunctions: _toD(j['TotalNoOfFunction']),
         totalReservations: _toD(j['TotalNoOfReservations']),
       );
+
+  bool get hasActivity =>
+      totalRevenue != 0 || totalFunctions != 0 || totalReservations != 0;
 
   @override
   List<Object?> get props => [totalRevenue, totalFunctions, totalReservations];
@@ -462,6 +531,14 @@ class FrontofficeData extends Equatable {
         totalRevenue: _toD(j['TotalRevenueFo']),
         totalCollection: _toD(j['TotalCollection']),
       );
+
+  bool get hasActivity =>
+      totalCheckIn != 0 ||
+      currentGuests != 0 ||
+      expectedArrival != 0 ||
+      probableCheckout != 0 ||
+      totalRevenue != 0 ||
+      totalCollection != 0;
 
   @override
   List<Object?> get props => [
@@ -596,6 +673,37 @@ class DashboardData extends Equatable {
               (j['Currency'] as Map).cast<String, dynamic>())
           : CurrencyData.fallback,
     );
+  }
+
+  /// Returns the hasActivity flag for a section by its display name.
+  /// Case-insensitive, handles the "HrManager" ↔ "HR" and
+  /// "FrontOffice" ↔ "Frontoffice" naming mismatches.
+  bool hasActivityFor(String sectionName) {
+    final n = sectionName.toLowerCase();
+    switch (n) {
+      case 'emr':
+        return emr.hasActivity;
+      case 'accounts':
+        return accounts.hasActivity;
+      case 'store':
+        return store.hasActivity;
+      case 'bar':
+        return bar.hasActivity;
+      case 'lab':
+        return lab.hasActivity;
+      case 'restaurant':
+        return restaurant.hasActivity;
+      case 'banquet':
+        return banquet.hasActivity;
+      case 'frontoffice':
+      case 'front office':
+        return frontoffice.hasActivity;
+      case 'hr':
+      case 'hrmanager':
+        return hr.hasActivity;
+      default:
+        return false;
+    }
   }
 
   @override

@@ -17,9 +17,7 @@ import '../../../data/models/dashboard_data.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/dashboard/dashboard_bloc.dart';
 import '../../widgets/chart_card.dart';
-import '../../widgets/charts/bar_chart_widget.dart';
 import '../../widgets/charts/donut.dart';
-import '../../widgets/charts/waterfall.dart';
 import '../accounts/accounts_screen.dart';
 import '../banquet/banquet_screen.dart';
 import '../bar/bar_screen.dart';
@@ -120,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
 
     context.read<DashboardBloc>().add(
-          const DashboardPollingStarted(interval: Duration(seconds: 50)),
+          const DashboardPollingStarted(interval: Duration(seconds: 30)),
         );
   }
 
@@ -148,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       });
       context.read<DashboardBloc>().add(
-            const DashboardPollingStarted(interval: Duration(seconds: 50)),
+            const DashboardPollingStarted(interval: Duration(seconds: 30)),
           );
     }
   }
@@ -165,7 +163,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final bloc = context.read<DashboardBloc>();
     bloc.add(const DashboardPollingStopped());
     bloc.add(const DashboardLoadRequested());
-    bloc.add(const DashboardPollingStarted(interval: Duration(seconds: 50)));
+    bloc.add(const DashboardPollingStarted(interval: Duration(seconds: 30)));
 
     Navigator.of(context).pop();
   }
@@ -214,11 +212,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+//  Drawer with branch switcher
+// ─────────────────────────────────────────────────────────────
   Widget _buildDrawer(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       buildWhen: (a, b) => a.branches != b.branches,
       builder: (context, authState) {
         final branches = authState.branches;
+
+        // Fallback: if drawer opens with no branches (edge cases like
+        // bootstrap not firing, or a state reset), fire AuthBootstrapped
+        // to force a fresh read from LocalStorageService.
+        //
+        // Fires post-frame so we don't dispatch during a build.
+        if (branches.isEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              AppLogger.info(
+                  _tag, 'drawer opened with empty branches — bootstrapping');
+              context.read<AuthBloc>().add(const AuthBootstrapped());
+            }
+          });
+        }
+
         return Drawer(
           backgroundColor: const Color(0xFF1F2937),
           child: SafeArea(
@@ -248,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             KStyles().bold(
-                              text: 'Ayurliv Dashboard',
+                              text: 'Ayurlive Dashboard',
                               size: 14,
                               color: DashboardColors.textOnDark,
                             ),
@@ -280,11 +297,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 const Gap(8),
                 if (branches.isEmpty)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: KStyles().reg(
-                      text: 'No branches available',
-                      size: 12,
-                      color: DashboardColors.textOnDarkMuted,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white54,
+                              ),
+                            ),
+                            const Gap(10),
+                            KStyles().reg(
+                              text: 'Loading branches...',
+                              size: 12,
+                              color: DashboardColors.textOnDarkMuted,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   )
                 else
@@ -323,15 +359,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final data = state.data!;
     final currency = data.currency.defaultCurrency;
 
-    // Independently detect what each section has data for. This avoids
-    // the "response arrived but shows No activity today" bug where the
-    // server returns chart data (sectionsDaily) but no tile data
-    // (sectionTiles) — as happens for the ALL branch aggregation.
-
-    // Tiles: any tile with non-zero count OR non-zero revenue.
-    final activeTiles = data.overview.sectionTiles
-        .where((t) => t.count != 0 || t.revenue != 0)
-        .toList();
+    // A tile is "active" if EITHER:
+//   1. Its Overview.SectionTile has non-zero count/revenue, OR
+//   2. The section's OWN detail object has any non-zero value.
+//
+// This catches cases like Accounts having TotalCheckIn=192 and
+// TotalRevenueAllModules=311 even though SectionTile.revenue=0.
+// Bar with everything = 0 is correctly hidden.
+    final activeTiles = data.overview.sectionTiles.where((t) {
+      final tileActive = t.count != 0 || t.revenue != 0;
+      final sectionActive = data.hasActivityFor(t.name);
+      return tileActive || sectionActive;
+    }).toList();
 
     // Chart data: any daily section with non-zero revenue (positive OR negative).
     final dailyWithData =
@@ -739,6 +778,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           color: DashboardColors.textOnDark,
         ),
         const Gap(4),
+        //display the selected branch name in the welcome hero
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: KStyles().reg(
+            text: 'Branch: ${_selectedBranchValue ?? 'N/A'}',
+            size: 14,
+            color: DashboardColors.textOnDarkSecondary,
+          ),
+        ),
+        const Gap(2),
+
         KStyles().reg(
           text: '${theme.subtitle} · ${CurrencyUtils.name(currency)}',
           size: 12,

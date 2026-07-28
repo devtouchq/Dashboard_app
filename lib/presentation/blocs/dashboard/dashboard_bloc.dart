@@ -26,7 +26,7 @@ class DashboardRefreshed extends DashboardEvent {
 
 class DashboardPollingStarted extends DashboardEvent {
   final Duration interval;
-  const DashboardPollingStarted({this.interval = const Duration(seconds: 50)});
+  const DashboardPollingStarted({this.interval = const Duration(seconds: 30)});
   @override
   List<Object?> get props => [interval];
 }

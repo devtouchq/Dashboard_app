@@ -1,6 +1,6 @@
 class StringConstants {
   // App
-  static const String appName = "Ayurliv Dashboard";
+  static const String appName = "Ayurlive Dashboard";
 
   // Fonts
   static const String roboto = "Roboto";

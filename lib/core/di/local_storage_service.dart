@@ -28,7 +28,11 @@ class LocalStorageService {
   /// Call once at app start before runApp().
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    AppLogger.info(_tag, 'initialized. baseUrl="${baseUrl ?? ''}"');
+    // Diagnostic: log what's already in storage on startup. Useful for
+    // debugging "branches missing on cold start".
+    final saved = branchList;
+    AppLogger.info(_tag,
+        'initialized. baseUrl="${baseUrl ?? ''}" persistedBranches=${saved.length}');
   }
 
   // ─── Base URL ────────────────────────────────────────────
@@ -85,30 +89,39 @@ class LocalStorageService {
   Future<void> setBranchList(List<Branch> branches) async {
     final jsonList =
         branches.map((b) => {'text': b.text, 'value': b.value}).toList();
-    await _prefs.setString(_kBranchList, jsonEncode(jsonList));
-    AppLogger.info(_tag, 'setBranchList: ${branches.length} branches');
+    final encoded = jsonEncode(jsonList);
+    await _prefs.setString(_kBranchList, encoded);
+    AppLogger.info(
+        _tag, 'setBranchList: ${branches.length} branches saved to prefs');
   }
 
   /// Read the persisted branch list. Returns empty list if none saved.
   /// Called at cold-start from AuthBloc's bootstrap handler.
   List<Branch> get branchList {
     final raw = _prefs.getString(_kBranchList);
-    if (raw == null || raw.isEmpty) return const [];
+    if (raw == null || raw.isEmpty) {
+      AppLogger.info(_tag, 'branchList getter: no persisted branches found');
+      return const [];
+    }
     try {
       final decoded = jsonDecode(raw) as List;
-      return decoded.map((e) {
+      final list = decoded.map((e) {
         final map = e as Map;
         return Branch(
           text: map['text']?.toString() ?? '',
           value: map['value']?.toString() ?? '',
         );
       }).toList();
-    } catch (_) {
+      AppLogger.info(
+          _tag, 'branchList getter: restored ${list.length} branches');
+      return list;
+    } catch (e) {
+      AppLogger.error(_tag, 'branchList decode failed: $e');
       return const [];
     }
   }
 
-  // ─── Remember me ─────────────────────────────────────────
+  // ────────────────── Remember me ─────────────────────
   Future<void> setRememberMe({
     required bool remember,
     String? accountId,
@@ -132,7 +145,9 @@ class LocalStorageService {
   String? get savedAccountId => _prefs.getString(_kSavedAccountId);
   String? get savedUsername => _prefs.getString(_kSavedUsername);
 
-  // ─── Clear / logout ──────────────────────────────────────
+  // ───────────────── Clear / logout ────────────
+  /// Clear the login session but keep baseUrl and remember-me info.
+  /// User will land on LoginScreen with prefilled Account ID/Username.
   Future<void> clearSession() async {
     AppLogger.info(_tag, 'clearSession');
     await Future.wait([
@@ -142,13 +157,16 @@ class LocalStorageService {
       _prefs.remove(_kModule),
       _prefs.remove(_kUniqueId),
       _prefs.remove(_kSelectedBranch),
+      _prefs.remove(_kBranchList), // ← branch list belongs to the session
     ]);
   }
 
   /// Wipe everything — used to reset the app to its first-launch state.
+  /// User will see BaseUrlScreen next.
   Future<void> clearAll() async {
     AppLogger.info(_tag, 'clearAll');
+    // _prefs.clear() already wipes everything including _kBranchList.
+    // The explicit remove was redundant (kept for readability but no-op).
     await _prefs.clear();
-    await _prefs.remove(_kBranchList);
   }
 }

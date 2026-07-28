@@ -39,9 +39,9 @@ class NotificationService {
 
   // Android notification channel — required on Android 8+.
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-    'ayurliv_high_importance',
-    'Ayurliv Notifications',
-    description: 'Updates and alerts from Ayurliv Dashboard.',
+    'ayurlive_high_importance',
+    'Ayurlive Notifications',
+    description: 'Updates and alerts from Ayurlive Dashboard.',
     importance: Importance.high,
     playSound: true,
   );

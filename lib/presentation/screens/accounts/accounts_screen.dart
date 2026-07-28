@@ -49,14 +49,14 @@ class AccountsScreen extends StatelessWidget {
             StatCard(
               icon: Icons.account_balance_wallet_outlined,
               iconColor: DashboardColors.iconTeal,
-              value: CurrencyUtils.format(data.totalRevenue, currency),
+              value: CurrencyUtils.format(data.totalCreditors, currency),
               label: 'Total Creditors',
             ),
             StatCard(
               icon: Icons.account_balance_wallet_outlined,
               iconColor: DashboardColors.iconRed,
               value: CurrencyUtils.format(data.totalDebitors, currency),
-              label: 'Total Debtors',
+              label: 'Total Debitors',
             ),
           ],
         ),
@@ -66,25 +66,24 @@ class AccountsScreen extends StatelessWidget {
             icon: Icons.call_received,
             iconColor: DashboardColors.iconGreen,
             value: CurrencyUtils.format(data.totalReceipts, currency),
-            label: 'Receipts',
+            label: 'Total Receipts',
           ),
           StatCard(
             icon: Icons.call_made,
             iconColor: DashboardColors.iconOrange,
             value: CurrencyUtils.format(data.totalPayments, currency),
-            label: 'Payments',
+            label: 'Total Payments',
           ),
         ]),
         const Gap(16),
         ChartCard(
-          title: 'Receivables vs Collection',
+          title: 'Accounts Overview',
           child: BarChartWidget(
             groups: [
               BarGroup(label: 'Debitors', values: [data.totalDebitors.abs()]),
               BarGroup(label: 'Receipts', values: [data.totalReceipts.abs()]),
               BarGroup(label: 'Payments', values: [data.totalPayments.abs()]),
-              BarGroup(
-                  label: 'Collection', values: [data.totalCollection.abs()]),
+              BarGroup(label: 'Creditors', values: [data.totalCreditors.abs()]),
             ],
             barColors: const [Color(0xFF2DD4A0)],
             barWidth: 28,
