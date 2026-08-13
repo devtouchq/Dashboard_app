@@ -1,25 +1,25 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Brand colors (from the dashboard design)
-  static const Color primaryColor = Color(0xFF1D9E75); // Teal/Green
-  static const Color secondaryColor = Color(0xFF0F6E56); // Dark teal
-  //sectionHeaderBg
-  static const Color sectionHeaderBg =
-      Color.fromARGB(255, 203, 208, 207); // Light teal
+  // // Brand colors (from the dashboard design)
+  // static const Color primaryColor = Color(0xFF1D9E75); // Teal/Green
+  // static const Color secondaryColor = Color(0xFF0F6E56); // Dark teal
+  // //sectionHeaderBg
+  // static const Color sectionHeaderBg =
+  //     Color.fromARGB(255, 203, 208, 207); // Light teal
 
-  // Section colors
-  static const Color emrColor = Color(0xFFE2585A); // Coral - EMR
-  static const Color accountsColor = Color(0xFF1D9E75); // Teal - Accounts
-  static const Color storeColor = Color(0xFF534AB7); // Purple - Store
-  static const Color hrColor = Color(0xFF2DA9A6); // teal
-  static const Color restaurantColor = Color(0xFF4F8A4F); // forest green
-  static const Color labColor = Color(0xFF1F1A4D); // coral
-  static const Color barColor = Color.fromARGB(255, 33, 85, 134);
-  static const Color frontofficeColor =
-      Color.fromARGB(213, 200, 50, 52); // same red family
-  static const Color banquetColor = Color.fromARGB(255, 150, 150, 150); // grey
-  // Base colors
+  // // Section colors
+  // static const Color emrColor = Color(0xFFE2585A); // Coral - EMR
+  // static const Color accountsColor = Color(0xFF1D9E75); // Teal - Accounts
+  // static const Color storeColor = Color(0xFF534AB7); // Purple - Store
+  // static const Color hrColor = Color(0xFF2DA9A6); // teal
+  // static const Color restaurantColor = Color(0xFF4F8A4F); // forest green
+  // static const Color labColor = Color(0xFF1F1A4D); // coral
+  // static const Color barColor = Color.fromARGB(255, 33, 85, 134);
+  // static const Color frontofficeColor =
+  //     Color.fromARGB(213, 200, 50, 52); // same red family
+  // static const Color banquetColor = Color.fromARGB(255, 150, 150, 150); // grey
+  // // Base colors
   static const Color white = Colors.white;
   static const Color black = Colors.black;
   static const Color red = Colors.red;
@@ -46,99 +46,100 @@ class AppColors {
   static const Color lightGrey = Color.fromARGB(253, 220, 218, 218);
   static const Color clearRed = Color.fromARGB(255, 196, 34, 34);
   static const Color cancelRed = Color.fromARGB(255, 159, 76, 70);
-
-  // Light metric backgrounds (used in EMR IP/OP/New/Repeat tiles)
-  static const Color lmCoralBg = Color(0xFFFAECE7);
-  static const Color lmCoralText = Color(0xFF712B13);
-  static const Color lmAmberBg = Color(0xFFFAEEDA);
-  static const Color lmAmberText = Color(0xFF633806);
-  static const Color lmBlueBg = Color(0xFFE6F1FB);
-  static const Color lmBlueText = Color(0xFF0C447C);
-  static const Color lmGreenBg = Color(0xFFEAF3DE);
-  static const Color lmGreenText = Color(0xFF27500A);
-
-  // Hero card gradient stops (dark navy)
-  static const Color heroDarkStart = Color(0xFF0F172A);
-  static const Color heroDarkEnd = Color(0xFF1E293B);
-
-  // Chart palette
-  static const Color chartGreen = Color(0xFF10B981);
-  static const Color chartRed = Color(0xFFF87171);
-  static const Color chartPurple = Color(0xFFA78BFA);
-  static const Color chartTeal = Color(0xFF37BFB8);
-  static const Color chartNavy = Color(0xFF1F1A4D);
-  static const Color chartAmber = Color(0xFFEF9F27);
-  // Chart series colors — one per series in the home stacked area chart
-  static const Color seriesAccounts = Color(0xFF10B981); // green
-  static const Color seriesEmr = Color(0xFFF87171); // red
-  static const Color seriesStore = Color(0xFFA78BFA); // purple
-  static const Color seriesHr = Color(0xFF2DA9A6); // teal
-  static const Color seriesRestaurant = Color(0xFF4F8A4F); // forest
-  static const Color seriesLab = Color(0xFFEF9F27); // amber
-  static const Color seriesBar = Color(0xFF3BA0FF); // sky blue
-  static const Color seriesFrontoffice = Color(0xFF1D9E75); // green
-  static const Color seriesBanquet = Color(0xFF2DA9A6); // teal-cyan
-
-// Banquet tile colors (light tinted backgrounds matching the screenshot)
-  static const Color banquetBlueBg = Color(0xFFDDE7F2);
-  static const Color banquetBlueBorder = Color(0xFF8FA4B9);
-  static const Color banquetPeachBg = Color(0xFFF9E1D0);
-  static const Color banquetPeachBorder = Color(0xFFB97A5C);
-  static const Color banquetGreenBg = Color(0xFFD8EFC3);
-  static const Color banquetGreenBorder = Color(0xFF6E9F4F);
-
-  // Frontoffice tile background (light blue gradient)
-  static const Color frontofficeTileStart = Color(0xFFE3EAF3);
-  static const Color frontofficeTileEnd = Color(0xFFC9D8E8);
-
-  // Total Collection donut on Frontoffice
-  static const Color frontofficeCash = Color(0xFFFF6B2C); // orange
-  static const Color frontofficeCredit = Color(0xFF1A1F6C); // dark navy
-
-  // ──────────────────────────────────────────────────────────
-  //  GRADIENT LISTS — these are what the metric cards consume
-  // ──────────────────────────────────────────────────────────
-
-  static const List<Color> gradientColors = [
-    Color.fromARGB(202, 255, 255, 255),
-    AppColors.primaryColor,
-    AppColors.primaryColor,
-  ];
-
-  static const List<Color> heroGradient = [heroDarkStart, heroDarkEnd];
-
-  static const List<Color> emrGradient = [
-    Color(0xFFE2585A),
-    Color(0xFF993C1D),
-  ];
-
-  static const List<Color> accountsGradient = [
-    Color(0xFF0F6E56),
-    Color(0xFF1D9E75),
-  ];
-
-  static const List<Color> storeGradient = [
-    Color(0xFF3C3489),
-    Color(0xFF534AB7),
-  ];
-
-  static const List<Color> amberGradient = [
-    Color(0xFFEF9F27),
-    Color(0xFF854F0B),
-  ];
-
-  static const List<Color> purpleGradient = [
-    Color(0xFF534AB7),
-    Color(0xFF3C3489),
-  ];
-
-  static const List<Color> navyGradient = [
-    Color(0xFF1F1A4D),
-    Color(0xFF26215C),
-  ];
-
-  static const List<Color> roseGradient = [
-    Color(0xFFB85B6C),
-    Color(0xFF993556),
-  ];
 }
+
+//   // Light metric backgrounds (used in EMR IP/OP/New/Repeat tiles)
+//   static const Color lmCoralBg = Color(0xFFFAECE7);
+//   static const Color lmCoralText = Color(0xFF712B13);
+//   static const Color lmAmberBg = Color(0xFFFAEEDA);
+//   static const Color lmAmberText = Color(0xFF633806);
+//   static const Color lmBlueBg = Color(0xFFE6F1FB);
+//   static const Color lmBlueText = Color(0xFF0C447C);
+//   static const Color lmGreenBg = Color(0xFFEAF3DE);
+//   static const Color lmGreenText = Color(0xFF27500A);
+
+//   // Hero card gradient stops (dark navy)
+//   static const Color heroDarkStart = Color(0xFF0F172A);
+//   static const Color heroDarkEnd = Color(0xFF1E293B);
+
+//   // Chart palette
+//   static const Color chartGreen = Color(0xFF10B981);
+//   static const Color chartRed = Color(0xFFF87171);
+//   static const Color chartPurple = Color(0xFFA78BFA);
+//   static const Color chartTeal = Color(0xFF37BFB8);
+//   static const Color chartNavy = Color(0xFF1F1A4D);
+//   static const Color chartAmber = Color(0xFFEF9F27);
+//   // Chart series colors — one per series in the home stacked area chart
+//   static const Color seriesAccounts = Color(0xFF10B981); // green
+//   static const Color seriesEmr = Color(0xFFF87171); // red
+//   static const Color seriesStore = Color(0xFFA78BFA); // purple
+//   static const Color seriesHr = Color(0xFF2DA9A6); // teal
+//   static const Color seriesRestaurant = Color(0xFF4F8A4F); // forest
+//   static const Color seriesLab = Color(0xFFEF9F27); // amber
+//   static const Color seriesBar = Color(0xFF3BA0FF); // sky blue
+//   static const Color seriesFrontoffice = Color(0xFF1D9E75); // green
+//   static const Color seriesBanquet = Color(0xFF2DA9A6); // teal-cyan
+
+// // Banquet tile colors (light tinted backgrounds matching the screenshot)
+//   static const Color banquetBlueBg = Color(0xFFDDE7F2);
+//   static const Color banquetBlueBorder = Color(0xFF8FA4B9);
+//   static const Color banquetPeachBg = Color(0xFFF9E1D0);
+//   static const Color banquetPeachBorder = Color(0xFFB97A5C);
+//   static const Color banquetGreenBg = Color(0xFFD8EFC3);
+//   static const Color banquetGreenBorder = Color(0xFF6E9F4F);
+
+//   // Frontoffice tile background (light blue gradient)
+//   static const Color frontofficeTileStart = Color(0xFFE3EAF3);
+//   static const Color frontofficeTileEnd = Color(0xFFC9D8E8);
+
+//   // Total Collection donut on Frontoffice
+//   static const Color frontofficeCash = Color(0xFFFF6B2C); // orange
+//   static const Color frontofficeCredit = Color(0xFF1A1F6C); // dark navy
+
+//   // ──────────────────────────────────────────────────────────
+//   //  GRADIENT LISTS — these are what the metric cards consume
+//   // ──────────────────────────────────────────────────────────
+
+//   static const List<Color> gradientColors = [
+//     Color.fromARGB(202, 255, 255, 255),
+//     AppColors.primaryColor,
+//     AppColors.primaryColor,
+//   ];
+
+//   static const List<Color> heroGradient = [heroDarkStart, heroDarkEnd];
+
+//   static const List<Color> emrGradient = [
+//     Color(0xFFE2585A),
+//     Color(0xFF993C1D),
+//   ];
+
+//   static const List<Color> accountsGradient = [
+//     Color(0xFF0F6E56),
+//     Color(0xFF1D9E75),
+//   ];
+
+//   static const List<Color> storeGradient = [
+//     Color(0xFF3C3489),
+//     Color(0xFF534AB7),
+//   ];
+
+//   static const List<Color> amberGradient = [
+//     Color(0xFFEF9F27),
+//     Color(0xFF854F0B),
+//   ];
+
+//   static const List<Color> purpleGradient = [
+//     Color(0xFF534AB7),
+//     Color(0xFF3C3489),
+//   ];
+
+//   static const List<Color> navyGradient = [
+//     Color(0xFF1F1A4D),
+//     Color(0xFF26215C),
+//   ];
+
+//   static const List<Color> roseGradient = [
+//     Color(0xFFB85B6C),
+//     Color(0xFF993556),
+//   ];
+// }

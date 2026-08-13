@@ -12,6 +12,7 @@ import 'presentation/screens/accounts/accounts_screen.dart';
 import 'presentation/screens/banquet/banquet_screen.dart';
 import 'presentation/screens/bar/bar_screen.dart';
 import 'presentation/screens/base_url/base_url_screen.dart';
+import 'presentation/screens/chat/chat_screen.dart';
 import 'presentation/screens/emr/emr_screen.dart';
 import 'presentation/screens/frontoffice/frontoffice_screen.dart';
 import 'presentation/screens/home/home_screen.dart';
@@ -81,6 +82,7 @@ class AyurlivApp extends StatelessWidget {
           '/hr': (_) => const HrScreen(),
           '/banquet': (_) => const BanquetScreen(),
           '/frontoffice': (_) => const FrontofficeScreen(),
+          '/chat': (_) => const ChatScreen(),
         },
       ),
     );

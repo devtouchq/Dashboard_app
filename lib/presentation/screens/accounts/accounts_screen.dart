@@ -79,15 +79,23 @@ class AccountsScreen extends StatelessWidget {
         ChartCard(
           title: 'Accounts Overview',
           child: BarChartWidget(
+            // Pass RAW values (including negatives). BarChartWidget draws
+            // negative bars downward in red, so users can see that a
+            // -3.5M creditor balance is NOT a positive number.
+            //
+            // Previously all values were .abs()'d, which made both positive
+            // and negative numbers look the same on the chart. Sign matters
+            // for accounting figures.
             groups: [
-              BarGroup(label: 'Debitors', values: [data.totalDebitors.abs()]),
-              BarGroup(label: 'Receipts', values: [data.totalReceipts.abs()]),
-              BarGroup(label: 'Payments', values: [data.totalPayments.abs()]),
-              BarGroup(label: 'Creditors', values: [data.totalCreditors.abs()]),
+              BarGroup(label: 'Debitors', values: [data.totalDebitors]),
+              BarGroup(label: 'Receipts', values: [data.totalReceipts]),
+              BarGroup(label: 'Payments', values: [data.totalPayments]),
+              BarGroup(label: 'Creditors', values: [data.totalCreditors]),
             ],
             barColors: const [Color(0xFF2DD4A0)],
+            negativeColor: DashboardColors.iconRed,
             barWidth: 28,
-            height: 220,
+            height: 240,
             rotateLabels: -0.3,
           ),
         ),

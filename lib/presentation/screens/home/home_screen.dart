@@ -22,6 +22,7 @@ import '../accounts/accounts_screen.dart';
 import '../banquet/banquet_screen.dart';
 import '../bar/bar_screen.dart';
 import '../base_url/base_url_screen.dart';
+import '../chat/chat_screen.dart';
 import '../emr/emr_screen.dart';
 import '../frontoffice/frontoffice_screen.dart';
 import '../hr/hr_screen.dart';
@@ -40,47 +41,47 @@ class _SectionVisual {
 const Map<String, _SectionVisual> _sectionVisuals = {
   'EMR': _SectionVisual(
     Icons.monitor_heart_outlined,
-    DashboardColors.iconBlue,
+    DashboardColors.iconBlue, // blue — matches EMR section
     EmrScreen.new,
   ),
   'Accounts': _SectionVisual(
     Icons.attach_money,
-    DashboardColors.iconGreen,
+    DashboardColors.iconGreen, // emerald — matches Accounts section
     AccountsScreen.new,
   ),
   'Store': _SectionVisual(
     Icons.inventory_2_outlined,
-    DashboardColors.iconPurple,
+    DashboardColors.iconIndigo, // WAS iconPurple → now indigo
     StoreScreen.new,
   ),
   'Bar': _SectionVisual(
     Icons.local_bar_outlined,
-    DashboardColors.iconOrange,
+    DashboardColors.iconOrange, // orange — matches Bar section
     BarScreen.new,
   ),
   'Lab': _SectionVisual(
     Icons.science_outlined,
-    DashboardColors.iconPurple,
+    DashboardColors.iconCyan, // WAS iconPurple → now cyan
     LabScreen.new,
   ),
   'Banquet': _SectionVisual(
     Icons.celebration_outlined,
-    DashboardColors.iconPink,
+    DashboardColors.iconPink, // pink — matches Banquet section
     BanquetScreen.new,
   ),
   'Restaurant': _SectionVisual(
     Icons.restaurant_outlined,
-    DashboardColors.iconAmber,
+    DashboardColors.iconAmber, // amber — matches Restaurant section
     RestaurantScreen.new,
   ),
   'HR': _SectionVisual(
     Icons.groups_outlined,
-    DashboardColors.iconBlue,
+    DashboardColors.iconTeal, // WAS iconBlue → now teal (matches HR)
     HrScreen.new,
   ),
   'Frontoffice': _SectionVisual(
     Icons.meeting_room_outlined,
-    DashboardColors.iconTeal,
+    DashboardColors.iconLime, // WAS iconTeal → now lime (matches Frontoffice)
     FrontofficeScreen.new,
   ),
 };
@@ -174,6 +175,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Scaffold(
       key: _scaffoldKey,
       drawer: _buildDrawer(context),
+      floatingActionButton: _chatFab(context),
       extendBodyBehindAppBar: true,
       backgroundColor: theme.backgroundGradient[0],
       body: Container(
@@ -208,6 +210,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  //*------------Chat floating action button--------
+  Widget _chatFab(BuildContext context) {
+    return FloatingActionButton.extended(
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ChatScreen()),
+        );
+      },
+      backgroundColor: SectionTheme.home.accent,
+      foregroundColor: Colors.white,
+      elevation: 6,
+      icon: const Icon(Icons.auto_awesome, size: 20),
+      label: KStyles().semiBold(
+        text: 'Ask AI',
+        size: 13,
+        color: Colors.white,
       ),
     );
   }
@@ -392,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           await Future.delayed(const Duration(milliseconds: 600));
         },
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
           children: [
             _welcomeHero(theme, currency),
             const Gap(20),
@@ -408,7 +430,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         await Future.delayed(const Duration(milliseconds: 600));
       },
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         children: [
           _welcomeHero(theme, currency),
           const Gap(20),
@@ -456,7 +478,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return tiles.map((tile) {
       final visual = _sectionVisuals[tile.name];
       final revenue = tile.revenue;
-
+// HR is attendance-focused, not revenue-generating. Hiding the
+      // revenue column on the HR tile keeps the numbers meaningful
+      // (Present-only) and avoids showing a redundant "₹0.00".
+      final showRevenue = tile.name != 'HR';
       if (visual == null) {
         return _DeptTile(
           icon: Icons.dashboard_outlined,
@@ -465,6 +490,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           subtitle: '${_fmtCount(tile.count)} ${tile.countLabel}',
           revenue: revenue,
           currency: currency,
+          showRevenue: showRevenue,
           onTap: () {},
         );
       }
@@ -475,6 +501,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         subtitle: '${_fmtCount(tile.count)} ${tile.countLabel}',
         revenue: revenue,
         currency: currency,
+        showRevenue: showRevenue,
         onTap: () => _push(context, visual.screen()),
       );
     }).toList();
@@ -1074,6 +1101,7 @@ class _DeptTile extends StatelessWidget {
   final Color iconColor;
   final String title;
   final String subtitle;
+  final bool showRevenue;
   final double revenue;
   final String currency;
   final VoidCallback onTap;
@@ -1085,6 +1113,7 @@ class _DeptTile extends StatelessWidget {
     required this.subtitle,
     required this.revenue,
     required this.currency,
+    this.showRevenue = true,
     required this.onTap,
   });
 
@@ -1136,23 +1165,26 @@ class _DeptTile extends StatelessWidget {
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  KStyles().bold(
-                    text: CurrencyUtils.format(revenue, currency),
-                    size: 14,
-                    color:
-                        isNegative ? negativeColor : DashboardColors.textOnDark,
-                  ),
-                  KStyles().reg(
-                    text: StringConstants.revenueLabel,
-                    size: 10,
-                    color: DashboardColors.textOnDarkMuted,
-                  ),
-                ],
-              ),
-              const Gap(6),
+              if (showRevenue) ...[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    KStyles().bold(
+                      text: CurrencyUtils.format(revenue, currency),
+                      size: 14,
+                      color: isNegative
+                          ? negativeColor
+                          : DashboardColors.textOnDark,
+                    ),
+                    KStyles().reg(
+                      text: StringConstants.revenueLabel,
+                      size: 10,
+                      color: DashboardColors.textOnDarkMuted,
+                    ),
+                  ],
+                ),
+                const Gap(6),
+              ],
               const Icon(Icons.chevron_right,
                   color: DashboardColors.textOnDarkMuted, size: 18),
             ],

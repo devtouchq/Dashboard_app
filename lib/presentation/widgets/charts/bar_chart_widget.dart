@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -24,7 +26,6 @@ class BarChartWidget extends StatefulWidget {
   final double rotateLabels;
 
   /// Color used for bars whose value is negative.
-  /// Defaults to red so losses/negative values stand out.
   final Color negativeColor;
 
   const BarChartWidget({
@@ -87,8 +88,7 @@ class _BarChartWidgetState extends State<BarChartWidget>
       );
     }
 
-    // Scan for BOTH positive max and negative min. This lets the chart
-    // grow in both directions with the y=0 line as the axis.
+    // Scan for BOTH positive max and negative min.
     double maxPos = 0;
     double minNeg = 0;
     for (final g in widget.groups) {
@@ -98,14 +98,13 @@ class _BarChartWidgetState extends State<BarChartWidget>
       }
     }
 
-    // Add 15% padding to each side so bars don't touch chart edges.
-    final maxY =
-        maxPos == 0 && minNeg == 0 ? 1.0 : (maxPos == 0 ? 0.0 : maxPos * 1.15);
-    final minY = minNeg == 0 ? 0.0 : minNeg * 1.15;
-
-    // Grid interval — split the total vertical range into ~4 lines.
-    final totalRange = maxY - minY;
-    final gridInterval = totalRange <= 0 ? 1.0 : totalRange / 4;
+    // Compute "nice" axis bounds — snaps to human-friendly round numbers
+    // (100, 500, 1k, 5k, etc.) so labels are like 3.0M/3.5M/4.0M/4.5M,
+    // never like 3.07M/4.09M that overlap and look messy.
+    final bounds = _niceBounds(minNeg, maxPos);
+    final maxY = bounds.maxY;
+    final minY = bounds.minY;
+    final interval = bounds.interval;
 
     return SizedBox(
       height: widget.height,
@@ -121,14 +120,12 @@ class _BarChartWidgetState extends State<BarChartWidget>
               gridData: FlGridData(
                 show: true,
                 drawVerticalLine: false,
-                horizontalInterval: gridInterval,
+                horizontalInterval: interval,
                 getDrawingHorizontalLine: (_) => FlLine(
                   color: Colors.white.withValues(alpha: 0.06),
                   strokeWidth: 1,
                 ),
               ),
-              // Prominent horizontal line at y=0 so the axis is visible
-              // when the chart has both positive and negative bars.
               extraLinesData: ExtraLinesData(
                 horizontalLines: [
                   HorizontalLine(
@@ -172,10 +169,20 @@ class _BarChartWidgetState extends State<BarChartWidget>
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 42,
+                    reservedSize: 46,
+                    // Force the interval so fl_chart doesn't add extra ticks
+                    // near the axis top/bottom that cause label overlap.
+                    interval: interval,
                     getTitlesWidget: (value, meta) {
-                      // Don't render "0" as it's now the axis line itself.
                       if (value == 0) return const SizedBox.shrink();
+                      // Only show labels at our computed grid positions.
+                      // fl_chart sometimes calls this at maxY too, causing
+                      // the "4.0M vs 4.1M" overlap. Skip anything not on grid.
+                      final rem = value.abs() % interval;
+                      final tolerance = interval * 0.01;
+                      if (rem > tolerance && (interval - rem) > tolerance) {
+                        return const SizedBox.shrink();
+                      }
                       return SideTitleWidget(
                         axisSide: meta.axisSide,
                         space: 4,
@@ -191,7 +198,6 @@ class _BarChartWidgetState extends State<BarChartWidget>
               ),
               barTouchData: BarTouchData(
                 touchTooltipData: BarTouchTooltipData(
-                  // fl_chart 0.69.2 uses getTooltipColor (function form)
                   getTooltipColor: (_) => const Color(0xFF1F2937),
                   getTooltipItem: (group, _, rod, __) {
                     return BarTooltipItem(
@@ -212,9 +218,6 @@ class _BarChartWidgetState extends State<BarChartWidget>
     );
   }
 
-  /// Build the bars. Bars with negative values render in `negativeColor`
-  /// (red by default) and grow downward from the 0-line. Positive bars
-  /// grow upward using `barColors` as before.
   List<BarChartGroupData> _buildGroups() {
     return List.generate(widget.groups.length, (gi) {
       final g = widget.groups[gi];
@@ -223,7 +226,6 @@ class _BarChartWidgetState extends State<BarChartWidget>
         final localT = ((_progress.value - start) / 0.6).clamp(0.0, 1.0);
 
         final rawValue = g.values[si];
-        // Animate from 0 toward the actual value — works for negatives too.
         final v = rawValue * localT;
 
         final isNegative = rawValue < 0;
@@ -232,7 +234,6 @@ class _BarChartWidgetState extends State<BarChartWidget>
             : (g.colorOverride ??
                 widget.barColors[si % widget.barColors.length]);
 
-        // Rounded corners on the far end (top for positive, bottom for negative).
         final borderRadius = isNegative
             ? const BorderRadius.vertical(bottom: Radius.circular(4))
             : const BorderRadius.vertical(top: Radius.circular(4));
@@ -258,11 +259,82 @@ class _BarChartWidgetState extends State<BarChartWidget>
     });
   }
 
+  /// Compute human-friendly axis bounds and a grid interval that snaps
+  /// to a round number. Prevents the "4.0M / 4.1M overlap" issue caused
+  /// by using the raw data range with 15% padding.
+  ///
+  /// Examples:
+  ///   min=0, max=3,556,357 → minY=0, maxY=4,000,000, interval=1,000,000
+  ///   min=-360, max=598,125 → minY=-100,000, maxY=800,000, interval=200,000
+  _NiceAxisBounds _niceBounds(double minVal, double maxVal) {
+    // Nothing to plot — degenerate case.
+    if (minVal == 0 && maxVal == 0) {
+      return _NiceAxisBounds(minY: 0, maxY: 1, interval: 0.25);
+    }
+
+    // Target ~4 grid lines.
+    final range = maxVal - minVal;
+    final targetInterval = range / 4;
+
+    // Round targetInterval up to a "nice" number: 1×10ⁿ, 2×10ⁿ, or 5×10ⁿ.
+    final niceInterval = _niceCeil(targetInterval);
+
+    // Snap max UP to the next multiple of niceInterval, min DOWN.
+    final niceMax = (maxVal / niceInterval).ceil() * niceInterval;
+    final niceMin = minVal >= 0
+        ? 0.0
+        : (minVal / niceInterval).floor() * niceInterval.toDouble();
+
+    return _NiceAxisBounds(
+      minY: niceMin.toDouble(),
+      maxY: niceMax.toDouble(),
+      interval: niceInterval,
+    );
+  }
+
+  /// Rounds x UP to the nearest "nice" number of the form
+  /// {1, 2, 5} × 10ⁿ. E.g. 823 → 1000, 2317 → 5000, 890000 → 1000000.
+  double _niceCeil(double x) {
+    if (x <= 0) return 1;
+    final exp = (math.log(x) / math.ln10).floor();
+    final magnitude = math.pow(10, exp).toDouble();
+    final normalized = x / magnitude;
+    double nice;
+    if (normalized <= 1) {
+      nice = 1;
+    } else if (normalized <= 2) {
+      nice = 2;
+    } else if (normalized <= 5) {
+      nice = 5;
+    } else {
+      nice = 10;
+    }
+    return nice * magnitude;
+  }
+
   String _formatAxis(double value) {
     final abs = value.abs();
     final sign = value < 0 ? '-' : '';
-    if (abs >= 1000000) return '$sign${(abs / 1000000).toStringAsFixed(1)}M';
+    if (abs >= 1000000) {
+      final m = abs / 1000000;
+      // Show one decimal only when it's meaningful (e.g. 3.5M, not 4.0M).
+      return m == m.roundToDouble()
+          ? '$sign${m.toStringAsFixed(0)}M'
+          : '$sign${m.toStringAsFixed(1)}M';
+    }
     if (abs >= 1000) return '$sign${(abs / 1000).toStringAsFixed(0)}k';
     return '$sign${abs.toStringAsFixed(0)}';
   }
+}
+
+class _NiceAxisBounds {
+  final double minY;
+  final double maxY;
+  final double interval;
+
+  const _NiceAxisBounds({
+    required this.minY,
+    required this.maxY,
+    required this.interval,
+  });
 }

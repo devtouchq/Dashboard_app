@@ -1,6 +1,8 @@
 import 'package:auto_injector/auto_injector.dart';
 
+import '../../data/repositories/chat_repo.dart';
 import '../../data/repositories/device_token_repo.dart';
+import '../../presentation/blocs/chat/chat_bloc.dart';
 import '../network/dio_client.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/dashboard_repository.dart';
@@ -19,6 +21,14 @@ final autoInjector = AutoInjector(
           i.get<DioClient>(),
           i.get<LocalStorageService>(),
         ));
+
+    // AI chat
+    i.addSingleton<ChatRepository>(
+      () => ChatRepository(
+        i.get<DioClient>(),
+        i.get<LocalStorageService>(),
+      ),
+    );
     i.addSingleton<DeviceTokenRepository>(
       // ← ADD THIS
       () => DeviceTokenRepository(i.get<DioClient>()), // ← ADD THIS
@@ -33,6 +43,9 @@ final autoInjector = AutoInjector(
     );
 
     i.add<DashboardBloc>(() => DashboardBloc(i.get<DashboardRepository>()));
+// NOT singleton — a fresh bloc per chat session so the conversation
+// resets when the user reopens the chat.
+    i.add<ChatBloc>(() => ChatBloc(i.get<ChatRepository>()));
   },
 );
 
