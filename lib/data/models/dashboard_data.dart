@@ -485,24 +485,27 @@ class BanquetData extends Equatable {
   final double totalRevenue;
   final double totalFunctions;
   final double totalReservations;
+  final double totalCollection;
 
   const BanquetData({
     required this.totalRevenue,
     required this.totalFunctions,
     required this.totalReservations,
+    required this.totalCollection,
   });
 
   factory BanquetData.fromAccounts(Map<String, dynamic> j) => BanquetData(
         totalRevenue: _toD(j['TotalRevenueBanquet']),
         totalFunctions: _toD(j['TotalNoOfFunction']),
         totalReservations: _toD(j['TotalNoOfReservations']),
+        totalCollection: _toD(j['BanquetCollectionTotal']),
       );
 
   bool get hasActivity =>
-      totalRevenue != 0 || totalFunctions != 0 || totalReservations != 0;
+      totalRevenue != 0 || totalFunctions != 0 || totalReservations != 0 || totalCollection != 0;
 
   @override
-  List<Object?> get props => [totalRevenue, totalFunctions, totalReservations];
+  List<Object?> get props => [totalRevenue, totalFunctions, totalReservations, totalCollection];
 }
 
 class FrontofficeData extends Equatable {
@@ -529,7 +532,7 @@ class FrontofficeData extends Equatable {
         expectedArrival: _toD(j['TotalExpectedArrival']),
         probableCheckout: _toD(j['TotalProbableCheckout']),
         totalRevenue: _toD(j['TotalRevenueFo']),
-        totalCollection: _toD(j['TotalCollection']),
+        totalCollection: _toD(j['FoCollectionTotal']),
       );
 
   bool get hasActivity =>

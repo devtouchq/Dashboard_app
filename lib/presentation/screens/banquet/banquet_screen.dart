@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:gap/gap.dart';
 
 import '../../../core/constants/section_theme.dart';
 import '../../../core/utils/app_logger.dart';
@@ -48,6 +49,18 @@ class BanquetScreen extends StatelessWidget {
                         iconColor: DashboardColors.iconPurple,
                         value: '${data.totalReservations.toInt()}',
                         label: 'Reservations',
+                      ),
+                    ],
+                  ),
+                  const Gap(35),
+                  StatCardRow(
+                    cards: [
+                      StatCard(
+                        icon: Icons.money_off_outlined,
+                        iconColor: DashboardColors.iconGreen,
+                        value: CurrencyUtils.format(
+                            data.totalCollection, currency),
+                        label: 'Collections',
                       ),
                       StatCard(
                         icon: Icons.attach_money,

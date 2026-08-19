@@ -478,10 +478,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return tiles.map((tile) {
       final visual = _sectionVisuals[tile.name];
       final revenue = tile.revenue;
-// HR is attendance-focused, not revenue-generating. Hiding the
-      // revenue column on the HR tile keeps the numbers meaningful
-      // (Present-only) and avoids showing a redundant "₹0.00".
-      final showRevenue = tile.name != 'HR';
+      // HR is attendance-focused and Accounts is a roll-up of the other
+      // sections, so neither has a meaningful per-tile revenue figure.
+      // Hiding the revenue column keeps the counts front and centre and
+      // avoids showing a redundant "₹0.00".
+      const noRevenueTiles = {'HR', 'Accounts'};
+      final showRevenue = !noRevenueTiles.contains(tile.name);
       if (visual == null) {
         return _DeptTile(
           icon: Icons.dashboard_outlined,
