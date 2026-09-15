@@ -515,6 +515,7 @@ class FrontofficeData extends Equatable {
   final double probableCheckout;
   final double totalRevenue;
   final double totalCollection;
+  final double todayOccupancy;
 
   const FrontofficeData({
     required this.totalCheckIn,
@@ -523,6 +524,7 @@ class FrontofficeData extends Equatable {
     required this.probableCheckout,
     required this.totalRevenue,
     required this.totalCollection,
+    required this.todayOccupancy,
   });
 
   factory FrontofficeData.fromAccounts(Map<String, dynamic> j) =>
@@ -533,6 +535,7 @@ class FrontofficeData extends Equatable {
         probableCheckout: _toD(j['TotalProbableCheckout']),
         totalRevenue: _toD(j['TotalRevenueFo']),
         totalCollection: _toD(j['FoCollectionTotal']),
+        todayOccupancy: _toD(j['FoTodaysOccupancy']),
       );
 
   bool get hasActivity =>
@@ -541,7 +544,8 @@ class FrontofficeData extends Equatable {
       expectedArrival != 0 ||
       probableCheckout != 0 ||
       totalRevenue != 0 ||
-      totalCollection != 0;
+      totalCollection != 0 ||
+      todayOccupancy != 0;
 
   @override
   List<Object?> get props => [
@@ -550,7 +554,8 @@ class FrontofficeData extends Equatable {
         expectedArrival,
         probableCheckout,
         totalRevenue,
-        totalCollection
+        totalCollection,
+        todayOccupancy,
       ];
 }
 

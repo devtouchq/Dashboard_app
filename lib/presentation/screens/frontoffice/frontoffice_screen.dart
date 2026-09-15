@@ -45,14 +45,28 @@ class FrontofficeScreen extends StatelessWidget {
   Widget _content(FrontofficeData data, String currency) {
     return Column(
       children: [
+        // Check-in and Today Occupancy cards
         StatCardRow(
           cards: [
             StatCard(
-              icon: Icons.login_outlined,
+              icon: Icons.people_alt,
               iconColor: DashboardColors.iconBlue,
               value: '${data.totalCheckIn.toInt()}',
               label: 'Total Check-in',
             ),
+            StatCard(
+              icon: Icons.people_alt_outlined,
+              iconColor: DashboardColors.iconBlue,
+              value: '${data.todayOccupancy.toInt()}',
+              label: 'Today Occupancy',
+            ),
+            
+          ],
+        ),
+        const Gap(12),
+        StatCardRow(
+          cards: [
+            // Current Guests and Expected Arrival cards
             StatCard(
               icon: Icons.people_outline,
               iconColor: DashboardColors.iconGreen,
@@ -68,8 +82,7 @@ class FrontofficeScreen extends StatelessWidget {
           ],
         ),
         const Gap(12),
-        StatCardRow(
-          cards: [
+        // Total Collections and Revenue cards
             StatCard(
               //collection icon
               icon: Icons.collections_outlined,
@@ -77,14 +90,14 @@ class FrontofficeScreen extends StatelessWidget {
               value: CurrencyUtils.format(data.totalCollection, currency),
               label: 'Total Collections',
             ),
+            const Gap(12),
             StatCard(
               icon: Icons.attach_money,
               iconColor: DashboardColors.iconTeal,
               value: CurrencyUtils.format(data.totalRevenue, currency),
               label: 'Revenue',
             ),
-          ],
-        ),
+         
       ],
     );
   }
