@@ -1,329 +1,297 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:io';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../utils/app_logger.dart';
 import 'notification_center_service.dart';
 
-/// Background message handler. MUST be a top-level function (not a method)
-/// because the OS spawns a fresh isolate to execute it when the app is
-/// terminated. Add this annotation to keep the tree-shaker happy.
+/// Top-level handler required by firebase_messaging for background messages.
+/// Must be a top-level or static function annotated with @pragma.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  AppLogger.info('FCM', 'background message: ${message.messageId}');
-  AppLogger.info('FCM', 'data: ${message.data}');
-// Bump the badge from the background isolate too. This works because
-// SharedPreferences is process-safe — the value persists and the main
-// isolate picks it up via the stream the next time it reads.
-  try {
-    await NotificationCenterService().init();
-    await NotificationCenterService().increment();
-  } catch (e) {
-    AppLogger.error('FCM', 'badge bump failed: $e');
-  }
+  await Firebase.initializeApp();
+  AppLogger.info('NotificationBg', 'background message: ${message.messageId}');
+  await NotificationCenterService().init();
+  await NotificationCenterService().increment();
 }
 
-/// Central notification handler. Call `init()` once after Firebase.initializeApp().
+/// Wraps Firebase Cloud Messaging + local-notification display.
+///
+/// iOS notes:
+///  - On iOS, FCM cannot issue a token until Apple's APNS gives the app
+///    an APNS token first. APNS itself requires:
+///      1. An APNs key uploaded to Firebase Console
+///      2. Push Notifications capability enabled in Xcode
+///      3. Running on a physical device (simulators never get APNS tokens)
+///  - We defer getToken() until getAPNSToken() returns non-null (with a
+///    short retry loop), and if APNS still fails we skip the FCM step
+///    gracefully rather than crashing the app.
 class NotificationService {
   static const _tag = 'NotificationService';
+  static const _channelId = 'ayurliv_high_importance';
 
-  // GlobalKey<NavigatorState> from main.dart so we can navigate
-  // from anywhere (including notification taps) without context.
-  static final navigatorKey = GlobalKey<NavigatorState>();
+  /// Global navigator key so background/terminated pushes can route.
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
-  static final _local = FlutterLocalNotificationsPlugin();
-  static final _messaging = FirebaseMessaging.instance;
+  static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  static final FlutterLocalNotificationsPlugin _local =
+      FlutterLocalNotificationsPlugin();
 
-  // Android notification channel — required on Android 8+.
-  static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-    'ayurlive_high_importance',
-    'Ayurlive Notifications',
-    description: 'Updates and alerts from Ayurlive Dashboard.',
-    importance: Importance.high,
-    playSound: true,
-  );
+  /// Current FCM token — null until we successfully fetch one.
+  static String? fcmToken;
 
-  /// Cached FCM token so callers can register it with the backend.
-  static String? _fcmToken;
-  static String? get fcmToken => _fcmToken;
-
-  /// Stream that fires whenever the FCM token rotates. Use this in your
-  /// AuthBloc to re-register the token with your backend.
+  /// Emits every time the token changes (initial fetch + Firebase rotations).
   static final StreamController<String> _tokenController =
       StreamController<String>.broadcast();
   static Stream<String> get tokenStream => _tokenController.stream;
 
-  /// Initialize. Call once from main() after Firebase.initializeApp().
+  // ─────────────────────────────────────────────────────────────
+  //  Init — call once from main() AFTER Firebase.initializeApp()
+  // ─────────────────────────────────────────────────────────────
   static Future<void> init() async {
-    print('═══ NotificationService.init() ENTERED');
     AppLogger.info(_tag, 'init');
 
-    // 1. Set up local notifications (used to show foreground banners
-    //    on Android — iOS shows them natively when configured below).
-    await _setupLocalNotifications();
-
-    // 2. Register the Android channel (no-op on iOS).
-    await _local
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_channel);
-
-    // 3. iOS-specific: tell FCM to show heads-up alerts when foreground.
-    await _messaging.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // 4. Request permission. On Android 13+ this triggers the runtime
-    //    POST_NOTIFICATIONS permission. On iOS this triggers the popup.
-    await requestPermission();
-
-    // 5. Get the FCM token.
-    await _refreshToken();
-
-    // 6. Listen for token rotations (happens occasionally).
-    _messaging.onTokenRefresh.listen((token) {
-      AppLogger.info(_tag, 'token refreshed');
-      _fcmToken = token;
-      _tokenController.add(token);
-    });
-
-    // 7. Foreground messages — show a local banner manually.
-    FirebaseMessaging.onMessage.listen(_onForegroundMessage);
-
-    // 8. App opened from a notification (was in background).
-    FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpenedApp);
-
-    // 9. App launched cold from a notification (was terminated).
-    final initialMsg = await _messaging.getInitialMessage();
-    if (initialMsg != null) {
-      // Delay so the navigator is ready.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _onMessageOpenedApp(initialMsg);
-      });
-    }
-  }
-
-  static Future<void> _setupLocalNotifications() async {
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosInit = DarwinInitializationSettings(
-      requestAlertPermission: false, // handled by FCM permission flow
-      requestBadgePermission: false,
-      requestSoundPermission: false,
-    );
-    const settings = InitializationSettings(android: androidInit, iOS: iosInit);
-
-    await _local.initialize(
-      settings,
-      onDidReceiveNotificationResponse: (response) {
-        // User tapped a foreground banner — payload is the JSON-encoded data map.
-        if (response.payload != null && response.payload!.isNotEmpty) {
-          try {
-            final data = json.decode(response.payload!) as Map<String, dynamic>;
-            _handleTap(data);
-          } catch (e) {
-            AppLogger.error(_tag, 'bad payload: $e');
-          }
-        }
-      },
-    );
-  }
-
-  /// Ask the user for notification permission.
-  /// Returns true if granted.
-  static Future<bool> requestPermission() async {
+    // 1. Request user permission (Android 13+ needs runtime, iOS always needs).
     final settings = await _messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
-      provisional: false,
     );
-    final granted =
-        settings.authorizationStatus == AuthorizationStatus.authorized ||
-            settings.authorizationStatus == AuthorizationStatus.provisional;
     AppLogger.info(_tag, 'permission: ${settings.authorizationStatus}');
-    return granted;
+
+    // 2. Set up local notifications for foreground display.
+    await _initLocalNotifications();
+
+    // 3. On iOS, wait for APNS token before asking for FCM token.
+    //    On Android, this is a no-op.
+    if (Platform.isIOS) {
+      final apnsReady = await _waitForApnsToken();
+      if (!apnsReady) {
+        AppLogger.info(
+            _tag,
+            'iOS APNS token unavailable — skipping FCM token fetch. '
+            'Push will start working once APNS is configured (Apple Dev + '
+            'APNs key + Xcode capabilities + physical device).');
+        // Wire up listeners anyway — if APNS becomes available later
+        // (rare, but possible), we'll pick up the token via onTokenRefresh.
+        _wireTokenRefreshListener();
+        _wireMessageListeners();
+        return;
+      }
+    }
+
+    // 4. Fetch the initial FCM token (safely).
+    await _refreshToken();
+
+    // 5. Listen for token rotations (Firebase may issue a new one).
+    _wireTokenRefreshListener();
+
+    // 6. Wire up incoming-message handlers.
+    _wireMessageListeners();
   }
 
+  /// Poll for the APNS token for up to ~10 seconds. Returns true if we
+  /// got one, false if it never arrived. This handles the fact that
+  /// APNS registration is asynchronous — the token might not be ready
+  /// the instant `requestPermission` returns.
+  static Future<bool> _waitForApnsToken() async {
+    const attempts = 10;
+    const delay = Duration(seconds: 1);
+
+    for (var i = 0; i < attempts; i++) {
+      try {
+        final token = await _messaging.getAPNSToken();
+        if (token != null && token.isNotEmpty) {
+          AppLogger.info(_tag, 'APNS token ready after ${i + 1} attempt(s)');
+          return true;
+        }
+      } catch (e) {
+        AppLogger.info(_tag, 'getAPNSToken attempt ${i + 1} threw: $e');
+      }
+      await Future.delayed(delay);
+    }
+    AppLogger.info(_tag,
+        'APNS token never arrived after ${attempts}s. Common causes:');
+    AppLogger.info(_tag, '  • Running in iOS Simulator (needs real device)');
+    AppLogger.info(_tag, '  • Push Notifications capability not enabled in Xcode');
+    AppLogger.info(_tag, '  • APNs key not uploaded to Firebase Console');
+    AppLogger.info(_tag, '  • Bundle ID mismatch between Xcode and Firebase');
+    return false;
+  }
+
+  /// Try to fetch the FCM token. Never throws — logs and moves on.
   static Future<void> _refreshToken() async {
-    print('═══ _refreshToken() ENTERED');
     try {
       final token = await _messaging.getToken();
-      print('═══ getToken returned: $token');
-      AppLogger.info(_tag, 'FCM token: $token');
-      _fcmToken = token;
-      if (token != null) _tokenController.add(token);
+      if (token != null && token.isNotEmpty) {
+        fcmToken = token;
+        _tokenController.add(token);
+        AppLogger.info(_tag, 'FCM token: ${token.substring(0, 20)}...');
+      } else {
+        AppLogger.info(_tag, 'FCM token was null');
+      }
     } catch (e, st) {
       AppLogger.error(_tag, 'getToken failed', error: e, stackTrace: st);
+      // Swallow — app must not crash if push registration fails.
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Foreground handling
-  // ─────────────────────────────────────────────────────────────
-  static Future<void> _onForegroundMessage(RemoteMessage message) async {
-    AppLogger.info(_tag,
-        'foreground message: ${message.notification?.title} / data=${message.data}');
+  static void _wireTokenRefreshListener() {
+    _messaging.onTokenRefresh.listen((newToken) {
+      AppLogger.info(_tag, 'onTokenRefresh: ${newToken.substring(0, 20)}...');
+      fcmToken = newToken;
+      _tokenController.add(newToken);
+    });
+  }
 
-    // FCM doesn't show banners automatically when app is in foreground.
-    // We render one ourselves via flutter_local_notifications.
+  static void _wireMessageListeners() {
+    // Foreground: show a local notification banner.
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      AppLogger.info(_tag, 'onMessage: ${message.messageId}');
+      NotificationCenterService().increment();
+      _showLocalNotification(message);
+    });
+
+    // User tapped a notification while app was in background.
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      AppLogger.info(_tag, 'onMessageOpenedApp: ${message.messageId}');
+      _handleTap(message);
+    });
+
+    // App was cold-started by tapping a notification.
+    _messaging.getInitialMessage().then((RemoteMessage? message) {
+      if (message != null) {
+        AppLogger.info(_tag, 'getInitialMessage: ${message.messageId}');
+        _handleTap(message);
+      }
+    });
+  }
+
+  static Future<void> _initLocalNotifications() async {
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+
+    await _local.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (details) {
+        AppLogger.info(_tag, 'local notification tapped');
+      },
+    );
+
+    // Create the high-importance Android channel.
+    const channel = AndroidNotificationChannel(
+      _channelId,
+      'Ayurliv High Importance',
+      description: 'Real-time updates from Ayurliv Dashboard',
+      importance: Importance.high,
+    );
+
+    await _local
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+  }
+
+  static Future<void> _showLocalNotification(RemoteMessage message) async {
     final notif = message.notification;
-    if (notif != null) {
-      await _local.show(
-        notif.hashCode,
-        notif.title,
-        notif.body,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            _channel.id,
-            _channel.name,
-            channelDescription: _channel.description,
-            importance: Importance.high,
-            priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
-          ),
-          iOS: const DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: true,
-          ),
-        ),
-        payload: json.encode(message.data),
-      );
-    }
-    // NEW: bump the unread badge whenever a foreground notification arrives.
-    await NotificationCenterService().increment();
+    if (notif == null) return;
+
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      'Ayurliv High Importance',
+      channelDescription: 'Real-time updates from Ayurliv Dashboard',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    const details =
+        NotificationDetails(android: androidDetails, iOS: iosDetails);
+
+    await _local.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      notif.title ?? 'Ayurliv',
+      notif.body ?? '',
+      details,
+    );
   }
-  //TODO: consider debouncing if you expect a flood of foreground notifications
-// ─── (OPTIONAL) — sync badge when app comes back to foreground ─────
-// When the user reopens the app after a background push, the main
-// isolate's in-memory count may be stale (the background isolate wrote
-// to SharedPreferences but our stream didn't fire). Re-read at init.
-//
-// Already handled by NotificationCenterService.init() being called once
-// in main.dart. If you want to refresh whenever the app resumes from
-// background, add this to your HomeScreen's didChangeAppLifecycleState:
-//
-//   if (state == AppLifecycleState.resumed) {
-//     // Re-read in case a background notification arrived while we slept.
-//     await NotificationCenterService().init();
-//   }
+
+  static void _handleTap(RemoteMessage message) {
+    // TODO: route to specific screen based on message.data
+    // For now, just bring the app to the foreground (default behavior).
+    AppLogger.info(_tag, 'tap data: ${message.data}');
+  }
 
   // ─────────────────────────────────────────────────────────────
-  //  Tap handling — user opens a notification.
-  //  Background notifications: route key in `message.data['screen']`.
+  //  Topic subscription — safe against APNS-not-ready
   // ─────────────────────────────────────────────────────────────
-  static void _onMessageOpenedApp(RemoteMessage message) {
-    AppLogger.info(_tag, 'message opened app: ${message.data}');
-    _handleTap(message.data);
-  }
-
-  static void _handleTap(Map<String, dynamic> data) {
-    final screen = data['screen']?.toString();
-    if (screen == null || screen.isEmpty) return;
-
-    AppLogger.info(_tag, 'navigating to: $screen');
-
-    // Use the global navigator key so this works without a BuildContext.
-    final nav = navigatorKey.currentState;
-    if (nav == null) {
-      AppLogger.error(_tag, 'navigator not ready');
-      return;
-    }
-
-    // Map of `screen` → route name. Adjust route names to match your
-    // MaterialApp.routes (or use direct Navigator.push with widgets).
-    switch (screen) {
-      case 'home':
-        nav.pushNamedAndRemoveUntil('/home', (r) => false);
-        break;
-      case 'emr':
-        nav.pushNamed('/emr');
-        break;
-      case 'accounts':
-        nav.pushNamed('/accounts');
-        break;
-      case 'store':
-        nav.pushNamed('/store');
-        break;
-      case 'bar':
-        nav.pushNamed('/bar');
-        break;
-      case 'lab':
-        nav.pushNamed('/lab');
-        break;
-      case 'restaurant':
-        nav.pushNamed('/restaurant');
-        break;
-      case 'hr':
-        nav.pushNamed('/hr');
-        break;
-      case 'banquet':
-        nav.pushNamed('/banquet');
-        break;
-      case 'frontoffice':
-        nav.pushNamed('/frontoffice');
-        break;
-      default:
-        AppLogger.info(_tag, 'unknown screen: $screen');
-    }
-  }
-
-  /// Subscribe this device to a topic (used for broadcast pushes).
-  /// e.g. subscribeToTopic('all-users') — anyone subscribed gets pushes
-  /// the backend sends to that topic.
   static Future<void> subscribeToTopic(String topic) async {
-    await _messaging.subscribeToTopic(topic);
-    AppLogger.info(_tag, 'subscribed: $topic');
+    // On iOS, subscribeToTopic also requires APNS. Skip if not ready.
+    if (Platform.isIOS) {
+      try {
+        final apns = await _messaging.getAPNSToken();
+        if (apns == null || apns.isEmpty) {
+          AppLogger.info(_tag,
+              'skipping subscribeToTopic("$topic") — APNS not ready on iOS');
+          return;
+        }
+      } catch (e) {
+        AppLogger.info(_tag, 'APNS check before topic subscribe failed: $e');
+        return;
+      }
+    }
+
+    try {
+      await _messaging.subscribeToTopic(topic);
+      AppLogger.info(_tag, 'subscribed to topic: $topic');
+    } catch (e, st) {
+      AppLogger.error(_tag, 'subscribeToTopic("$topic") failed',
+          error: e, stackTrace: st);
+      // Don't rethrow — a failed topic subscription is not fatal.
+    }
   }
 
   static Future<void> unsubscribeFromTopic(String topic) async {
-    await _messaging.unsubscribeFromTopic(topic);
-    AppLogger.info(_tag, 'unsubscribed: $topic');
+    if (Platform.isIOS) {
+      final apns = await _messaging.getAPNSToken();
+      if (apns == null) return;
+    }
+    try {
+      await _messaging.unsubscribeFromTopic(topic);
+      AppLogger.info(_tag, 'unsubscribed from topic: $topic');
+    } catch (e) {
+      AppLogger.info(_tag, 'unsubscribeFromTopic failed: $e');
+    }
   }
 
-  /// Force-delete the current FCM token. Useful on logout — the backend
-  /// won't be able to push to a device that has logged out.
+  /// Called by AuthBloc on logout so the next login gets a fresh token.
   static Future<void> deleteToken() async {
     try {
       await _messaging.deleteToken();
-      _fcmToken = null;
-      AppLogger.info(_tag, 'token deleted');
+      fcmToken = null;
+      AppLogger.info(_tag, 'FCM token deleted');
     } catch (e) {
-      AppLogger.error(_tag, 'deleteToken failed: $e');
+      AppLogger.info(_tag, 'deleteToken failed (ignored): $e');
     }
   }
 }
-
-// ════════════════════════════════════════════════════════════════════
-//  TROUBLESHOOTING
-// ════════════════════════════════════════════════════════════════════
-//
-// 1. "FCM token is null" on Android
-//    → Real device required. Emulators without Google Play Services
-//      won't return a token.
-//    → Make sure google-services.json is in android/app/.
-//
-// 2. "No notification shown" on iOS
-//    → Must use a real iPhone. Simulator doesn't deliver push.
-//    → APNs key must be uploaded to Firebase (Stage 1.4).
-//    → Push capability must be enabled in Xcode (Stage 2.5).
-//    → Bundle ID must match between Xcode and Firebase.
-//
-// 3. "Notification arrives but tap doesn't navigate"
-//    → MaterialApp must use navigatorKey: NotificationService.navigatorKey.
-//    → Backend must send `data: { "screen": "emr" }` in the FCM payload.
-//
-// 4. "Background notification doesn't show banner on Android"
-//    → Backend MUST send a `notification` field (title + body) for the
-//      OS to render the banner. Data-only pushes won't show a tray entry.
-//
-// 5. "Foreground banner not shown on iOS"
-//    → Verify setForegroundNotificationPresentationOptions was called
-//      in init() (it is — but check init() runs before notifications arrive).
-//
-// ════════════════════════════════════════════════════════════════════
