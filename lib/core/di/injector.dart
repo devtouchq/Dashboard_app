@@ -4,6 +4,7 @@ import '../../data/repositories/chat_repo.dart';
 import '../../data/repositories/device_token_repo.dart';
 import '../../presentation/blocs/chat/chat_bloc.dart';
 import '../network/dio_client.dart';
+import '../services/speech_service.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/dashboard_repository.dart';
 import '../../presentation/blocs/auth/auth_bloc.dart';
@@ -29,6 +30,10 @@ final autoInjector = AutoInjector(
         i.get<LocalStorageService>(),
       ),
     );
+    // Voice input for the AI chat — one instance so the plugin is only
+    // initialised once per app run.
+    i.addSingleton<SpeechService>(() => SpeechService());
+
     i.addSingleton<DeviceTokenRepository>(
       // ← ADD THIS
       () => DeviceTokenRepository(i.get<DioClient>()), // ← ADD THIS

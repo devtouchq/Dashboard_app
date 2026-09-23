@@ -119,7 +119,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
 
     context.read<DashboardBloc>().add(
-          const DashboardPollingStarted(interval: Duration(seconds: 30)),
+          const DashboardPollingStarted(),
         );
   }
 
@@ -147,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       });
       context.read<DashboardBloc>().add(
-            const DashboardPollingStarted(interval: Duration(seconds: 30)),
+            const DashboardPollingStarted(),
           );
     }
   }
@@ -164,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final bloc = context.read<DashboardBloc>();
     bloc.add(const DashboardPollingStopped());
     bloc.add(const DashboardLoadRequested());
-    bloc.add(const DashboardPollingStarted(interval: Duration(seconds: 30)));
+    bloc.add(const DashboardPollingStarted());
 
     Navigator.of(context).pop();
   }
@@ -203,6 +203,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 return Column(
                   children: [
                     _topBar(context, state),
+                    _dateRangeBar(context, state),
                     Expanded(child: _body(context, state, theme)),
                   ],
                 );
@@ -646,6 +647,126 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  From / To date filter (defaults to today)
+  // ─────────────────────────────────────────────────────────────
+  Widget _dateRangeBar(BuildContext context, DashboardState state) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: _dateField(
+              label: 'From',
+              date: state.effectiveFromDate,
+              onTap: () => _pickDate(context, state, isFrom: true),
+            ),
+          ),
+          const Gap(10),
+          Expanded(
+            child: _dateField(
+              label: 'To',
+              date: state.effectiveToDate,
+              onTap: () => _pickDate(context, state, isFrom: false),
+            ),
+          ),
+          if (state.hasCustomRange) ...[
+            const Gap(4),
+            IconButton(
+              onPressed: () => context
+                  .read<DashboardBloc>()
+                  .add(const DashboardDateRangeChanged()),
+              icon: const Icon(Icons.today_outlined,
+                  color: DashboardColors.textOnDark, size: 22),
+              tooltip: 'Back to today',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _dateField({
+    required String label,
+    required DateTime date,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_today_outlined,
+                color: DashboardColors.textOnDarkSecondary, size: 16),
+            const Gap(8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  KStyles().reg(
+                    text: label,
+                    size: 10,
+                    color: DashboardColors.textOnDarkMuted,
+                  ),
+                  KStyles().semiBold(
+                    text: _fmtDate(date),
+                    size: 13,
+                    color: DashboardColors.textOnDark,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickDate(BuildContext context, DashboardState state,
+      {required bool isFrom}) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final from = state.effectiveFromDate;
+    final to = state.effectiveToDate;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: isFrom ? from : to,
+      firstDate: DateTime(2000),
+      lastDate: today,
+      helpText: isFrom ? 'Select from date' : 'Select to date',
+      builder: (ctx, child) => Theme(data: ThemeData.dark(), child: child!),
+    );
+    if (picked == null || !context.mounted) return;
+
+    var newFrom = isFrom ? picked : from;
+    var newTo = isFrom ? to : picked;
+    // Keep the range valid: move the other end if the user crossed it.
+    if (newFrom.isAfter(newTo)) {
+      if (isFrom) {
+        newTo = newFrom;
+      } else {
+        newFrom = newTo;
+      }
+    }
+
+    context
+        .read<DashboardBloc>()
+        .add(DashboardDateRangeChanged(fromDate: newFrom, toDate: newTo));
+  }
+
+  String _fmtDate(DateTime d) {
+    String pad(int v) => v.toString().padLeft(2, '0');
+    return '${pad(d.day)}/${pad(d.month)}/${d.year}';
   }
 
   Widget _bellWithBadge() {

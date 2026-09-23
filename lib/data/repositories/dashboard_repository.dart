@@ -13,7 +13,10 @@ class DashboardRepository {
   DashboardRepository(this._client, this._storage);
 
   /// POST {baseUrl}/api/DashBoardManagement/DashBoard/MobileAppDashBoardViewRequest
-  Future<DashboardData> fetchDashboard() async {
+  Future<DashboardData> fetchDashboard({
+    required DateTime fromDate,
+    required DateTime toDate,
+  }) async {
     final body = {
       'AccountId': _storage.accountId ?? '',
       'AuthToken': _storage.authToken ?? '',
@@ -21,6 +24,8 @@ class DashboardRepository {
       'SubModule': _storage.selectedBranch ?? '',
       'UniqueID': _storage.uniqueId ?? '',
       'TabId': '',
+      'FromDate': _formatDate(fromDate),
+      'ToDate': _formatDate(toDate),
     };
 
     AppLogger.info(_tag, 'fetchDashboard → body=$body');
@@ -52,5 +57,11 @@ class DashboardRepository {
       AppLogger.error(_tag, 'fetch error', error: e, stackTrace: st);
       rethrow;
     }
+  }
+
+  /// Date format expected by the server: dd/MM/yyyy.
+  String _formatDate(DateTime dt) {
+    String pad(int v) => v.toString().padLeft(2, '0');
+    return '${pad(dt.day)}/${pad(dt.month)}/${dt.year}';
   }
 }

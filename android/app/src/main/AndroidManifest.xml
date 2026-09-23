@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Voice input in the AI assistant chat -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="ayurlive Dashboard"
         android:name="${applicationName}"
@@ -50,6 +52,11 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Required on Android 11+ so speech_to_text can find the
+             device's speech recognition service. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
         </intent>
     </queries>
 </manifest>

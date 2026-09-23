@@ -26,13 +26,24 @@ class DashboardRefreshed extends DashboardEvent {
 
 class DashboardPollingStarted extends DashboardEvent {
   final Duration interval;
-  const DashboardPollingStarted({this.interval = const Duration(seconds: 30)});
+  const DashboardPollingStarted(
+      {this.interval = DashboardBloc.defaultPollInterval});
   @override
   List<Object?> get props => [interval];
 }
 
 class DashboardPollingStopped extends DashboardEvent {
   const DashboardPollingStopped();
+}
+
+/// Changes the date range the dashboard is fetched for. Pass both as
+/// null to go back to "today".
+class DashboardDateRangeChanged extends DashboardEvent {
+  final DateTime? fromDate;
+  final DateTime? toDate;
+  const DashboardDateRangeChanged({this.fromDate, this.toDate});
+  @override
+  List<Object?> get props => [fromDate, toDate];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -45,11 +56,28 @@ class DashboardState extends Equatable {
   final DashboardData? data;
   final String? errorMessage;
 
+  /// User-selected range. Null means "today" — resolved at fetch time so
+  /// the dashboard rolls over to the new day automatically at midnight.
+  final DateTime? fromDate;
+  final DateTime? toDate;
+
   const DashboardState({
     this.status = DashboardStatus.initial,
     this.data,
     this.errorMessage,
+    this.fromDate,
+    this.toDate,
   });
+
+  bool get hasCustomRange => fromDate != null && toDate != null;
+
+  DateTime get effectiveFromDate => fromDate ?? _today();
+  DateTime get effectiveToDate => toDate ?? _today();
+
+  static DateTime _today() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
 
   DashboardState copyWith({
     DashboardStatus? status,
@@ -60,11 +88,13 @@ class DashboardState extends Equatable {
       status: status ?? this.status,
       data: data ?? this.data,
       errorMessage: errorMessage,
+      fromDate: fromDate,
+      toDate: toDate,
     );
   }
 
   @override
-  List<Object?> get props => [status, data, errorMessage];
+  List<Object?> get props => [status, data, errorMessage, fromDate, toDate];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -72,6 +102,7 @@ class DashboardState extends Equatable {
 // ─────────────────────────────────────────────────────────────
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   static const _tag = 'DashboardBloc';
+  static const defaultPollInterval = Duration(seconds: 10);
   final DashboardRepository _repository;
 
   Timer? _pollTimer;
@@ -82,12 +113,29 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     on<DashboardRefreshed>(_onRefresh);
     on<DashboardPollingStarted>(_onPollingStarted);
     on<DashboardPollingStopped>(_onPollingStopped);
+    on<DashboardDateRangeChanged>(_onDateRangeChanged);
   }
 
   Future<void> _onLoad(
       DashboardLoadRequested event, Emitter<DashboardState> emit) async {
     AppLogger.info(_tag, 'load (with spinner) — clearing old data');
-    emit(const DashboardState(status: DashboardStatus.loading));
+    emit(DashboardState(
+      status: DashboardStatus.loading,
+      fromDate: state.fromDate,
+      toDate: state.toDate,
+    ));
+    await _fetch(emit);
+  }
+
+  Future<void> _onDateRangeChanged(
+      DashboardDateRangeChanged event, Emitter<DashboardState> emit) async {
+    AppLogger.info(
+        _tag, 'date range changed → ${event.fromDate} .. ${event.toDate}');
+    emit(DashboardState(
+      status: DashboardStatus.loading,
+      fromDate: event.fromDate,
+      toDate: event.toDate,
+    ));
     await _fetch(emit);
   }
 
@@ -102,11 +150,20 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     final myId = ++_requestSeq;
 
     try {
-      final data = await _repository.fetchDashboard();
+      final data = await _repository.fetchDashboard(
+        fromDate: state.effectiveFromDate,
+        toDate: state.effectiveToDate,
+      );
 
       if (myId != _requestSeq) {
         AppLogger.info(
             _tag, 'stale response ignored (seq $myId vs $_requestSeq)');
+        return;
+      }
+
+      // Poll returned exactly what's already on screen — nothing to update.
+      if (state.status == DashboardStatus.success && data == state.data) {
+        AppLogger.info(_tag, 'no change in data — skipping update');
         return;
       }
 

@@ -79,7 +79,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     final welcome = ChatMessage(
       id: _nextId(),
       text:
-          "Hi! I'm your Ayurliv assistant. Ask me about today's revenue, patients, appointments, or anything else about your dashboard.",
+          "Hi! I'm your Ayurlive assistant. Ask me about the revenue, patients, appointments, or anything else about your dashboard.",
       sender: MessageSender.bot,
       timestamp: DateTime.now(),
     );

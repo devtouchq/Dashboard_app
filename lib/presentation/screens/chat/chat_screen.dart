@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +9,7 @@ import 'package:gap/gap.dart';
 import '../../../core/constants/section_theme.dart';
 import '../../../core/constants/text_styles.dart';
 import '../../../core/di/injector.dart';
+import '../../../core/services/speech_service.dart';
 import '../../../data/models/chat.model.dart';
 import '../../blocs/chat/chat_bloc.dart';
 
@@ -34,8 +37,24 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
   final _scrollController = ScrollController();
   final _inputFocus = FocusNode();
 
+  // ── Voice input ───────────────────────────────────────────────
+  /// Drag this far left of the mic to cancel instead of sending.
+  static const _cancelSlideDistance = 90.0;
+
+  final _speech = autoInjector.get<SpeechService>();
+
+  bool _isRecording = false;
+  bool _willCancel = false;
+  String _transcript = '';
+  double _dragDx = 0;
+  double _soundLevel = 0;
+  Duration _elapsed = Duration.zero;
+  Timer? _elapsedTimer;
+
   @override
   void dispose() {
+    _elapsedTimer?.cancel();
+    if (_isRecording) _speech.cancel();
     _inputController.dispose();
     _scrollController.dispose();
     _inputFocus.dispose();
@@ -49,6 +68,117 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
     context.read<ChatBloc>().add(ChatMessageSent(text));
     _inputController.clear();
     _scrollToBottom();
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Hold-to-talk: press the mic, speak, release to send.
+  //  Recognition happens on the device; the transcript is sent as a
+  //  normal text question, so the chat API is unchanged.
+  // ─────────────────────────────────────────────────────────────
+  Future<void> _startRecording() async {
+    if (_isRecording) return;
+
+    // Close the keyboard so the recording bar is fully visible.
+    _inputFocus.unfocus();
+    HapticFeedback.mediumImpact();
+
+    setState(() {
+      _isRecording = true;
+      _willCancel = false;
+      _transcript = '';
+      _dragDx = 0;
+      _soundLevel = 0;
+      _elapsed = Duration.zero;
+    });
+
+    final started = await _speech.startListening(
+      onResult: (transcript, _) {
+        if (mounted) setState(() => _transcript = transcript);
+      },
+      onSoundLevel: (level) {
+        if (mounted) setState(() => _soundLevel = level);
+      },
+      // Fires if the session can't start, and also if it dies while the
+      // finger is still down — drop the recording UI and say why.
+      onFailure: (_, message) {
+        _elapsedTimer?.cancel();
+        if (!mounted) return;
+        setState(() {
+          _isRecording = false;
+          _willCancel = false;
+          _transcript = '';
+        });
+        _showSnack(message);
+      },
+    );
+
+    if (!started || !mounted) return;
+
+    _elapsedTimer?.cancel();
+    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted || !_isRecording) {
+        t.cancel();
+        return;
+      }
+      setState(() => _elapsed = Duration(seconds: t.tick));
+    });
+  }
+
+  /// Release — stop listening and send whatever was recognised.
+  Future<void> _finishRecording() async {
+    if (!_isRecording) return;
+    _elapsedTimer?.cancel();
+
+    await _speech.stop();
+    // The final result usually lands just after stop(); give it a beat
+    // so the last word isn't dropped.
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+
+    final spoken = _transcript.trim();
+    setState(() {
+      _isRecording = false;
+      _transcript = '';
+    });
+
+    if (spoken.isEmpty) {
+      _showSnack("Didn't catch that — try again.");
+      return;
+    }
+
+    // Keep anything already typed and add the spoken part to it.
+    final existing = _inputController.text.trim();
+    _inputController.text = existing.isEmpty ? spoken : '$existing $spoken';
+    _sendMessage();
+  }
+
+  /// Slid away from the mic — throw the transcript away.
+  Future<void> _cancelRecording() async {
+    if (!_isRecording) return;
+    _elapsedTimer?.cancel();
+    HapticFeedback.lightImpact();
+    await _speech.cancel();
+    if (!mounted) return;
+    setState(() {
+      _isRecording = false;
+      _transcript = '';
+      _willCancel = false;
+    });
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF1F2937),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  String _fmtElapsed(Duration d) {
+    String pad(int v) => v.toString().padLeft(2, '0');
+    return '${pad(d.inMinutes)}:${pad(d.inSeconds % 60)}';
   }
 
   void _scrollToBottom() {
@@ -237,76 +367,209 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: SafeArea(
         top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
+        child: BlocBuilder<ChatBloc, ChatState>(
+          buildWhen: (a, b) => a.isBotTyping != b.isBotTyping,
+          builder: (context, state) {
+            final busy = state.isBotTyping;
+            // The mic button stays mounted in the same slot whether or
+            // not we're recording — replacing it mid-hold would kill the
+            // gesture and leave the session stuck open.
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: _isRecording ? _recordingIndicator() : _textField(),
                 ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: TextField(
-                  controller: _inputController,
-                  focusNode: _inputFocus,
-                  minLines: 1,
-                  maxLines: 5,
-                  textInputAction: TextInputAction.newline,
-                  style: TextStyle(
-                    color: DashboardColors.textOnDark,
-                    fontSize: 14,
-                  ),
-                  cursorColor: SectionTheme.home.accent,
-                  decoration: InputDecoration(
-                    hintText: 'Ask me anything...',
-                    hintStyle: TextStyle(
-                      color: DashboardColors.textOnDarkMuted,
-                      fontSize: 14,
-                    ),
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
-                  onSubmitted: (_) => _sendMessage(),
-                ),
-              ),
-            ),
-            const Gap(8),
-            BlocBuilder<ChatBloc, ChatState>(
-              buildWhen: (a, b) => a.isBotTyping != b.isBotTyping,
-              builder: (context, state) {
-                final canSend = !state.isBotTyping;
-                return Material(
-                  color: canSend
-                      ? SectionTheme.home.accent
-                      : SectionTheme.home.accent.withValues(alpha: 0.3),
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    onTap: canSend
-                        ? () {
-                            HapticFeedback.lightImpact();
-                            _sendMessage();
-                          }
-                        : null,
-                    customBorder: const CircleBorder(),
-                    child: const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Icon(
-                        Icons.arrow_upward_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
+                const Gap(8),
+                _micButton(busy),
+                if (!_isRecording) ...[
+                  const Gap(8),
+                  _sendButton(busy),
+                ],
+              ],
+            );
+          },
         ),
+      ),
+    );
+  }
+
+  Widget _textField() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: TextField(
+        controller: _inputController,
+        focusNode: _inputFocus,
+        minLines: 1,
+        maxLines: 5,
+        textInputAction: TextInputAction.newline,
+        style: TextStyle(
+          color: DashboardColors.textOnDark,
+          fontSize: 14,
+        ),
+        cursorColor: SectionTheme.home.accent,
+        decoration: InputDecoration(
+          hintText: 'Ask me anything...',
+          hintStyle: TextStyle(
+            color: DashboardColors.textOnDarkMuted,
+            fontSize: 14,
+          ),
+          border: InputBorder.none,
+          isDense: true,
+        ),
+        onSubmitted: (_) => _sendMessage(),
+      ),
+    );
+  }
+
+  Widget _sendButton(bool busy) {
+    final canSend = !busy;
+    return Material(
+      color: canSend
+          ? SectionTheme.home.accent
+          : SectionTheme.home.accent.withValues(alpha: 0.3),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: canSend
+            ? () {
+                HapticFeedback.lightImpact();
+                _sendMessage();
+              }
+            : null,
+        customBorder: const CircleBorder(),
+        child: const Padding(
+          padding: EdgeInsets.all(12),
+          child: Icon(
+            Icons.arrow_upward_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Hold to talk, release to send, slide left to cancel.
+  Widget _micButton(bool busy) {
+    final enabled = !busy;
+    final color = _isRecording
+        ? (_willCancel ? const Color(0xFFEF4444) : SectionTheme.home.accent)
+        : Colors.white.withValues(alpha: enabled ? 0.12 : 0.06);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? () => _showSnack('Hold the mic to talk') : null,
+      onLongPressStart: enabled ? (_) => _startRecording() : null,
+      onLongPressMoveUpdate: enabled
+          ? (details) {
+              final dx = details.localOffsetFromOrigin.dx;
+              final willCancel = dx < -_cancelSlideDistance;
+              if (dx != _dragDx || willCancel != _willCancel) {
+                setState(() {
+                  _dragDx = dx;
+                  _willCancel = willCancel;
+                });
+              }
+            }
+          : null,
+      onLongPressEnd: enabled
+          ? (_) => _willCancel ? _cancelRecording() : _finishRecording()
+          : null,
+      // Fires when the press is interrupted (a scroll steals it, the
+      // route is popped) — don't leave the mic listening.
+      onLongPressCancel: enabled ? _cancelRecording : null,
+      child: AnimatedScale(
+        scale: _isRecording ? 1.15 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        child: Container(
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: _isRecording
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.5),
+                      // Grows with how loud the speaker is.
+                      blurRadius: 8 + _soundLevel.clamp(0, 10) * 1.5,
+                      spreadRadius: _soundLevel.clamp(0, 10) * 0.6,
+                    ),
+                  ]
+                : null,
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Icon(
+            _isRecording && _willCancel ? Icons.delete_outline : Icons.mic,
+            color: _isRecording
+                ? Colors.white
+                : DashboardColors.textOnDark
+                    .withValues(alpha: enabled ? 1 : 0.4),
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Replaces the text field while holding the mic.
+  Widget _recordingIndicator() {
+    final cancelling = _willCancel;
+    return Container(
+      decoration: BoxDecoration(
+        color: cancelling
+            ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+            : Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: cancelling
+              ? const Color(0xFFEF4444).withValues(alpha: 0.5)
+              : Colors.white.withValues(alpha: 0.1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+              color: Color(0xFFEF4444),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const Gap(8),
+          KStyles().semiBold(
+            text: _fmtElapsed(_elapsed),
+            size: 12,
+            color: DashboardColors.textOnDark,
+          ),
+          const Gap(10),
+          Expanded(
+            child: cancelling
+                ? KStyles().semiBold(
+                    text: 'Release to cancel',
+                    size: 12,
+                    color: const Color(0xFFEF4444),
+                  )
+                : Text(
+                    _transcript.isEmpty ? '◀ Slide to cancel' : _transcript,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _transcript.isEmpty
+                          ? DashboardColors.textOnDarkMuted
+                          : DashboardColors.textOnDark,
+                      fontSize: 13,
+                    ),
+                  ),
+          ),
+        ],
       ),
     );
   }
