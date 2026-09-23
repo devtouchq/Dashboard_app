@@ -155,8 +155,7 @@ class _BranchScreenState extends State<BranchScreen>
                                   KStyles().reg(
                                     text: StringConstants.chooseYourBranch,
                                     size: 13,
-                                    color:
-                                        DashboardColors.textOnDarkSecondary,
+                                    color: DashboardColors.textOnDarkSecondary,
                                   ),
                                 ],
                               ),
@@ -251,11 +250,10 @@ class _BranchScreenState extends State<BranchScreen>
         style: ElevatedButton.styleFrom(
           backgroundColor: SectionTheme.home.accent,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           elevation: 0,
-          disabledBackgroundColor:
-              Colors.white.withValues(alpha: 0.1),
+          disabledBackgroundColor: Colors.white.withValues(alpha: 0.1),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -263,9 +261,7 @@ class _BranchScreenState extends State<BranchScreen>
             KStyles().semiBold(
               text: StringConstants.continueText,
               size: 15,
-              color: enabled
-                  ? Colors.white
-                  : DashboardColors.textOnDarkMuted,
+              color: enabled ? Colors.white : DashboardColors.textOnDarkMuted,
             ),
             const Gap(8),
             Icon(Icons.arrow_forward,
@@ -314,8 +310,8 @@ class _BranchTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 decoration: BoxDecoration(
                   color: selected
                       ? SectionTheme.home.accent.withValues(alpha: 0.2)

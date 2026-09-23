@@ -14,6 +14,16 @@ class ChatMessage extends Equatable {
   final DateTime timestamp;
   final MessageStatus status;
 
+  /// Local path of the recorded audio for a voice message, null for a
+  /// typed one. The file lives in the app's temp directory and is what
+  /// gets uploaded.
+  final String? audioPath;
+
+  /// How long that recording runs, shown on the bubble.
+  final Duration? audioDuration;
+
+  bool get isAudio => audioPath != null;
+
   /// True when `text` contains HTML markup and should be rendered via
   /// an HTML widget. Bot answers from the AI backend are always HTML
   /// (tables, badges, lists). User messages are always plain text.
@@ -26,6 +36,8 @@ class ChatMessage extends Equatable {
     required this.timestamp,
     this.status = MessageStatus.sent,
     this.isHtml = false,
+    this.audioPath,
+    this.audioDuration,
   });
 
   ChatMessage copyWith({
@@ -40,9 +52,12 @@ class ChatMessage extends Equatable {
       timestamp: timestamp,
       status: status ?? this.status,
       isHtml: isHtml ?? this.isHtml,
+      audioPath: audioPath,
+      audioDuration: audioDuration,
     );
   }
 
   @override
-  List<Object?> get props => [id, text, sender, timestamp, status, isHtml];
+  List<Object?> get props =>
+      [id, text, sender, timestamp, status, isHtml, audioPath, audioDuration];
 }

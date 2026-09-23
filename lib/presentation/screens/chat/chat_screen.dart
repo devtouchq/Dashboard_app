@@ -5,11 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:gap/gap.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:record/record.dart' show Amplitude;
 
 import '../../../core/constants/section_theme.dart';
 import '../../../core/constants/text_styles.dart';
 import '../../../core/di/injector.dart';
-import '../../../core/services/speech_service.dart';
+import '../../../core/services/audio_recorder_service.dart';
+import '../../../core/utils/app_logger.dart';
 import '../../../data/models/chat.model.dart';
 import '../../blocs/chat/chat_bloc.dart';
 
@@ -37,24 +40,25 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
   final _scrollController = ScrollController();
   final _inputFocus = FocusNode();
 
-  // ── Voice input ───────────────────────────────────────────────
+  // ── Voice messages ────────────────────────────────────────────
   /// Drag this far left of the mic to cancel instead of sending.
   static const _cancelSlideDistance = 90.0;
 
-  final _speech = autoInjector.get<SpeechService>();
+  final _recorder = autoInjector.get<AudioRecorderService>();
 
   bool _isRecording = false;
   bool _willCancel = false;
-  String _transcript = '';
   double _dragDx = 0;
-  double _soundLevel = 0;
+  double _level = 0;
   Duration _elapsed = Duration.zero;
   Timer? _elapsedTimer;
+  StreamSubscription<Amplitude>? _amplitudeSub;
 
   @override
   void dispose() {
     _elapsedTimer?.cancel();
-    if (_isRecording) _speech.cancel();
+    _amplitudeSub?.cancel();
+    if (_isRecording) _recorder.cancel();
     _inputController.dispose();
     _scrollController.dispose();
     _inputFocus.dispose();
@@ -71,9 +75,7 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
   }
 
   // ─────────────────────────────────────────────────────────────
-  //  Hold-to-talk: press the mic, speak, release to send.
-  //  Recognition happens on the device; the transcript is sent as a
-  //  normal text question, so the chat API is unchanged.
+  //  Hold to record, release to send the audio file itself.
   // ─────────────────────────────────────────────────────────────
   Future<void> _startRecording() async {
     if (_isRecording) return;
@@ -85,34 +87,37 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
     setState(() {
       _isRecording = true;
       _willCancel = false;
-      _transcript = '';
       _dragDx = 0;
-      _soundLevel = 0;
+      _level = 0;
       _elapsed = Duration.zero;
     });
 
-    final started = await _speech.startListening(
-      onResult: (transcript, _) {
-        if (mounted) setState(() => _transcript = transcript);
-      },
-      onSoundLevel: (level) {
-        if (mounted) setState(() => _soundLevel = level);
-      },
-      // Fires if the session can't start, and also if it dies while the
-      // finger is still down — drop the recording UI and say why.
+    final started = await _recorder.start(
       onFailure: (_, message) {
-        _elapsedTimer?.cancel();
+        _stopTicking();
         if (!mounted) return;
         setState(() {
           _isRecording = false;
           _willCancel = false;
-          _transcript = '';
         });
         _showSnack(message);
       },
     );
 
-    if (!started || !mounted) return;
+    if (!started) return;
+    if (!mounted) {
+      // Screen went away while the permission prompt was up.
+      await _recorder.cancel();
+      return;
+    }
+
+    _amplitudeSub?.cancel();
+    _amplitudeSub = _recorder.amplitude().listen((amp) {
+      if (!mounted) return;
+      // dBFS: about -60 when silent, 0 at the loudest. Map to 0..1.
+      final normalised = ((amp.current + 60) / 60).clamp(0.0, 1.0);
+      setState(() => _level = normalised);
+    });
 
     _elapsedTimer?.cancel();
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -120,50 +125,55 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
         t.cancel();
         return;
       }
-      setState(() => _elapsed = Duration(seconds: t.tick));
+      final elapsed = Duration(seconds: t.tick);
+      setState(() => _elapsed = elapsed);
+      // Don't let a forgotten finger record forever.
+      if (elapsed >= AudioRecorderService.maxDuration) _finishRecording();
     });
   }
 
-  /// Release — stop listening and send whatever was recognised.
+  /// Release — stop recording and send the file.
   Future<void> _finishRecording() async {
     if (!_isRecording) return;
-    _elapsedTimer?.cancel();
+    _stopTicking();
 
-    await _speech.stop();
-    // The final result usually lands just after stop(); give it a beat
-    // so the last word isn't dropped.
-    await Future.delayed(const Duration(milliseconds: 400));
+    final recording = await _recorder.stop();
     if (!mounted) return;
 
-    final spoken = _transcript.trim();
     setState(() {
       _isRecording = false;
-      _transcript = '';
+      _willCancel = false;
     });
 
-    if (spoken.isEmpty) {
-      _showSnack("Didn't catch that — try again.");
+    if (recording == null) {
+      _showSnack('Too short — hold the mic to record.');
       return;
     }
 
-    // Keep anything already typed and add the spoken part to it.
-    final existing = _inputController.text.trim();
-    _inputController.text = existing.isEmpty ? spoken : '$existing $spoken';
-    _sendMessage();
+    context.read<ChatBloc>().add(ChatAudioSent(
+          path: recording.file.path,
+          duration: recording.duration,
+        ));
+    _scrollToBottom();
   }
 
-  /// Slid away from the mic — throw the transcript away.
+  /// Slid away from the mic — bin the recording.
   Future<void> _cancelRecording() async {
     if (!_isRecording) return;
-    _elapsedTimer?.cancel();
+    _stopTicking();
     HapticFeedback.lightImpact();
-    await _speech.cancel();
+    await _recorder.cancel();
     if (!mounted) return;
     setState(() {
       _isRecording = false;
-      _transcript = '';
       _willCancel = false;
     });
+  }
+
+  void _stopTicking() {
+    _elapsedTimer?.cancel();
+    _amplitudeSub?.cancel();
+    _amplitudeSub = null;
   }
 
   void _showSnack(String message) {
@@ -496,9 +506,9 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
                 ? [
                     BoxShadow(
                       color: color.withValues(alpha: 0.5),
-                      // Grows with how loud the speaker is.
-                      blurRadius: 8 + _soundLevel.clamp(0, 10) * 1.5,
-                      spreadRadius: _soundLevel.clamp(0, 10) * 0.6,
+                      // Pulses with how loud the speaker is.
+                      blurRadius: 8 + _level * 18,
+                      spreadRadius: _level * 6,
                     ),
                   ]
                 : null,
@@ -557,19 +567,49 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
                     size: 12,
                     color: const Color(0xFFEF4444),
                   )
-                : Text(
-                    _transcript.isEmpty ? '◀ Slide to cancel' : _transcript,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: _transcript.isEmpty
-                          ? DashboardColors.textOnDarkMuted
-                          : DashboardColors.textOnDark,
-                      fontSize: 13,
-                    ),
+                : Row(
+                    children: [
+                      Expanded(child: _levelMeter()),
+                      const Gap(10),
+                      KStyles().reg(
+                        text: '◀ Slide to cancel',
+                        size: 11,
+                        color: DashboardColors.textOnDarkMuted,
+                      ),
+                    ],
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Simple live meter so it's obvious the mic is picking something up.
+  Widget _levelMeter() {
+    const bars = 14;
+    return SizedBox(
+      height: 18,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: List.generate(bars, (i) {
+          // Tallest in the middle, tapering to the edges, scaled by level.
+          final distanceFromCentre = (i - (bars - 1) / 2).abs() / (bars / 2);
+          final height =
+              (3 + (1 - distanceFromCentre) * 15 * _level).clamp(3.0, 18.0);
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                height: height,
+                decoration: BoxDecoration(
+                  color: SectionTheme.home.accent.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -663,6 +703,15 @@ class _MessageBubble extends StatelessWidget {
   /// User messages are always plain text.
   Widget _bubbleContent(bool isUser) {
     final textColor = isUser ? Colors.white : DashboardColors.textOnDark;
+
+    // Voice message — a small player instead of text.
+    if (message.isAudio) {
+      return _AudioBubble(
+        path: message.audioPath!,
+        duration: message.audioDuration ?? Duration.zero,
+        color: textColor,
+      );
+    }
 
     if (!message.isHtml) {
       return SelectableText(
@@ -805,6 +854,134 @@ class _MessageBubble extends StatelessWidget {
         size: 16,
       ),
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Voice message player
+// ─────────────────────────────────────────────────────────────
+class _AudioBubble extends StatefulWidget {
+  final String path;
+  final Duration duration;
+  final Color color;
+
+  const _AudioBubble({
+    required this.path,
+    required this.duration,
+    required this.color,
+  });
+
+  @override
+  State<_AudioBubble> createState() => _AudioBubbleState();
+}
+
+class _AudioBubbleState extends State<_AudioBubble> {
+  static const _tag = 'AudioBubble';
+
+  AudioPlayer? _player;
+  StreamSubscription<PlayerState>? _stateSub;
+  StreamSubscription<Duration>? _positionSub;
+
+  bool _playing = false;
+  Duration _position = Duration.zero;
+
+  @override
+  void dispose() {
+    _stateSub?.cancel();
+    _positionSub?.cancel();
+    _player?.dispose();
+    super.dispose();
+  }
+
+  /// The player is created on first tap — most voice messages are never
+  /// played back, so there's no point holding one per bubble.
+  Future<void> _toggle() async {
+    try {
+      if (_player == null) {
+        final player = AudioPlayer();
+        await player.setFilePath(widget.path);
+
+        _stateSub = player.playerStateStream.listen((s) {
+          if (!mounted) return;
+          if (s.processingState == ProcessingState.completed) {
+            player.pause();
+            player.seek(Duration.zero);
+            setState(() {
+              _playing = false;
+              _position = Duration.zero;
+            });
+          } else {
+            setState(() => _playing = s.playing);
+          }
+        });
+        _positionSub = player.positionStream.listen((p) {
+          if (mounted) setState(() => _position = p);
+        });
+
+        _player = player;
+      }
+
+      if (_player!.playing) {
+        await _player!.pause();
+      } else {
+        await _player!.play();
+      }
+    } catch (e, st) {
+      AppLogger.error(_tag, 'playback failed', error: e, stackTrace: st);
+      if (!mounted) return;
+      setState(() => _playing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not play this recording.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = _player?.duration ?? widget.duration;
+    final progress = total.inMilliseconds == 0
+        ? 0.0
+        : (_position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
+    final remaining = _playing || _position > Duration.zero ? _position : total;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: _toggle,
+          customBorder: const CircleBorder(),
+          child: Icon(
+            _playing ? Icons.pause_circle_filled : Icons.play_circle_fill,
+            color: widget.color,
+            size: 32,
+          ),
+        ),
+        const Gap(10),
+        SizedBox(
+          width: 110,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 4,
+              backgroundColor: widget.color.withValues(alpha: 0.25),
+              valueColor: AlwaysStoppedAnimation<Color>(widget.color),
+            ),
+          ),
+        ),
+        const Gap(10),
+        KStyles().reg(
+          text: _fmt(remaining),
+          size: 11,
+          color: widget.color.withValues(alpha: 0.85),
+        ),
+      ],
+    );
+  }
+
+  String _fmt(Duration d) {
+    String pad(int v) => v.toString().padLeft(2, '0');
+    return '${pad(d.inMinutes)}:${pad(d.inSeconds % 60)}';
   }
 }
 

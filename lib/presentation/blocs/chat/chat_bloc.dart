@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -19,6 +21,15 @@ class ChatMessageSent extends ChatEvent {
   const ChatMessageSent(this.text);
   @override
   List<Object?> get props => [text];
+}
+
+/// A recorded voice message, ready to upload.
+class ChatAudioSent extends ChatEvent {
+  final String path;
+  final Duration duration;
+  const ChatAudioSent({required this.path, required this.duration});
+  @override
+  List<Object?> get props => [path, duration];
 }
 
 class ChatMessageRetried extends ChatEvent {
@@ -69,6 +80,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   ChatBloc(this._repository) : super(const ChatState()) {
     on<ChatMessageSent>(_onSent);
+    on<ChatAudioSent>(_onAudioSent);
     on<ChatMessageRetried>(_onRetry);
     on<ChatCleared>(_onCleared);
 
@@ -109,6 +121,26 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
     await _callApi(userMsg, emit);
   }
 
+  Future<void> _onAudioSent(
+      ChatAudioSent event, Emitter<ChatState> emit) async {
+    final userMsg = ChatMessage(
+      id: _nextId(),
+      text: '',
+      sender: MessageSender.user,
+      timestamp: DateTime.now(),
+      status: MessageStatus.sending,
+      audioPath: event.path,
+      audioDuration: event.duration,
+    );
+
+    emit(state.copyWith(
+      messages: [...state.messages, userMsg],
+      isBotTyping: true,
+    ));
+
+    await _callApi(userMsg, emit);
+  }
+
   Future<void> _onRetry(
       ChatMessageRetried event, Emitter<ChatState> emit) async {
     final idx = state.messages.indexWhere((m) => m.id == event.messageId);
@@ -128,7 +160,12 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
   Future<void> _callApi(ChatMessage userMsg, Emitter<ChatState> emit) async {
     try {
-      final res = await _repository.sendMessage(userMsg.text);
+      final res = userMsg.isAudio
+          ? await _repository.sendAudio(
+              File(userMsg.audioPath!),
+              duration: userMsg.audioDuration,
+            )
+          : await _repository.sendMessage(userMsg.text);
 
       final withSent = state.messages.map((m) {
         if (m.id == userMsg.id) {

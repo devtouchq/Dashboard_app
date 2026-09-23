@@ -502,10 +502,14 @@ class BanquetData extends Equatable {
       );
 
   bool get hasActivity =>
-      totalRevenue != 0 || totalFunctions != 0 || totalReservations != 0 || totalCollection != 0;
+      totalRevenue != 0 ||
+      totalFunctions != 0 ||
+      totalReservations != 0 ||
+      totalCollection != 0;
 
   @override
-  List<Object?> get props => [totalRevenue, totalFunctions, totalReservations, totalCollection];
+  List<Object?> get props =>
+      [totalRevenue, totalFunctions, totalReservations, totalCollection];
 }
 
 class FrontofficeData extends Equatable {

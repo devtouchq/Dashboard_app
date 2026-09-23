@@ -41,6 +41,10 @@ class ChatRepository {
   /// Send timeout is short because the compressed request body is small.
   static const _aiSendTimeout = Duration(seconds: 30);
 
+  /// Audio uploads are much bigger than a question, and often go over a
+  /// mobile connection.
+  static const _audioSendTimeout = Duration(minutes: 2);
+
   final DioClient _client;
   final LocalStorageService _storage;
   final ApiTransformer _transformer;
@@ -55,7 +59,7 @@ class ChatRepository {
     try {
       final compressedPayload = _transformer.compressRequest(body);
       AppLogger.info(
-          _tag, 'request compressed to ${compressedPayload.length} chars'); 
+          _tag, 'request compressed to ${compressedPayload.length} chars');
 
       final response = await _client.dio.post(
         '/api/AIAssistant/SendMessage',
@@ -77,8 +81,6 @@ class ChatRepository {
           receiveTimeout: _aiReceiveTimeout,
         ),
       );
-
-
 
       if (response.statusCode != 200) {
         return ChatApiResponse(
@@ -133,6 +135,113 @@ class ChatRepository {
       rethrow;
     } catch (e, st) {
       AppLogger.error(_tag, 'sendMessage failed', error: e, stackTrace: st);
+      rethrow;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Voice messages
+  // ─────────────────────────────────────────────────────────────
+
+  /// Endpoint that accepts a recorded voice message.
+  ///
+  /// ⚠️ NOT WIRED UP YET — fill this in when the backend endpoint exists.
+  /// While it's empty, [sendAudio] fails with a clear message instead of
+  /// posting to the wrong place.
+  static const _audioEndpoint = '';
+
+  /// Name of the multipart field holding the audio file.
+  static const _audioFieldName = 'file';
+
+  /// Uploads a recorded voice message (m4a / AAC).
+  ///
+  /// The multipart shape below is a placeholder: it sends the file plus
+  /// the same identity fields every other call in this app uses. Adjust
+  /// [_audioEndpoint], [_audioFieldName] and the fields below to match
+  /// whatever the backend actually expects, and check how the answer
+  /// comes back — [_extractAIResponse] assumes the same envelope the
+  /// text endpoint returns.
+  Future<ChatApiResponse> sendAudio(File audioFile,
+      {Duration? duration}) async {
+    if (_audioEndpoint.isEmpty) {
+      AppLogger.info(_tag, 'sendAudio called but no endpoint is configured');
+      return const ChatApiResponse(
+        isSuccess: false,
+        botMessage: '',
+        errorMessage:
+            'Voice messages are not enabled yet — the server endpoint is not configured.',
+      );
+    }
+
+    final length = await audioFile.length();
+    AppLogger.info(
+        _tag, 'sendAudio → $length bytes, ${duration?.inSeconds ?? '?'}s');
+
+    try {
+      final form = FormData.fromMap({
+        _audioFieldName: await MultipartFile.fromFile(
+          audioFile.path,
+          filename: audioFile.uri.pathSegments.last,
+        ),
+        'AccountId': _storage.accountId ?? '',
+        'AuthToken': _storage.authToken ?? '',
+        'Module': _storage.module ?? 'EMR',
+        'SubModule': _storage.selectedBranch ?? '',
+        'UniqueID': _storage.uniqueId ?? '',
+        'DurationSeconds': duration?.inSeconds ?? 0,
+      });
+
+      final response = await _client.dio.post(
+        _audioEndpoint,
+        data: form,
+        options: Options(
+          responseType: ResponseType.bytes,
+          sendTimeout: _audioSendTimeout,
+          receiveTimeout: _aiReceiveTimeout,
+        ),
+      );
+
+      if (response.statusCode != 200) {
+        return ChatApiResponse(
+          isSuccess: false,
+          botMessage: '',
+          errorMessage: 'Server returned ${response.statusCode}',
+        );
+      }
+
+      final data = _decodeResponse(response.data as List<int>);
+      if (data == null) {
+        return const ChatApiResponse(
+          isSuccess: false,
+          botMessage: '',
+          errorMessage: 'Could not read server response',
+        );
+      }
+
+      final html = _extractAIResponse(data);
+      if (html.isEmpty) {
+        return const ChatApiResponse(
+          isSuccess: false,
+          botMessage: '',
+          errorMessage: 'The assistant did not return an answer',
+        );
+      }
+
+      return ChatApiResponse(isSuccess: true, botMessage: html, isHtml: true);
+    } on DioException catch (e, st) {
+      AppLogger.error(_tag, 'sendAudio failed', error: e, stackTrace: st);
+      if (e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.connectionTimeout) {
+        return const ChatApiResponse(
+          isSuccess: false,
+          botMessage: '',
+          errorMessage: 'Sending the voice message timed out. Please retry.',
+        );
+      }
+      rethrow;
+    } catch (e, st) {
+      AppLogger.error(_tag, 'sendAudio failed', error: e, stackTrace: st);
       rethrow;
     }
   }

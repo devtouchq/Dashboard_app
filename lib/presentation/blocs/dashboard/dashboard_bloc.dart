@@ -150,9 +150,10 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     final myId = ++_requestSeq;
 
     try {
+      // Null unless the user picked a range — see fetchDashboard.
       final data = await _repository.fetchDashboard(
-        fromDate: state.effectiveFromDate,
-        toDate: state.effectiveToDate,
+        fromDate: state.fromDate,
+        toDate: state.toDate,
       );
 
       if (myId != _requestSeq) {

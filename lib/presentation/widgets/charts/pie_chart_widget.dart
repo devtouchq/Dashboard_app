@@ -83,8 +83,7 @@ class _PieChartWidgetState extends State<PieChartWidget>
               return PieChart(
                 PieChartData(
                   sectionsSpace: 2,
-                  centerSpaceRadius:
-                      widget.donut ? widget.size * 0.22 : 0,
+                  centerSpaceRadius: widget.donut ? widget.size * 0.22 : 0,
                   // Rotate the pie in as it scales — like it's spinning in place
                   startDegreeOffset: -90 + (360 * (1 - t) * 0.25),
                   sections: widget.slices.map((s) {

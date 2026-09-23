@@ -75,6 +75,6 @@ class DeviceTokenRepository {
 }
 
 // Helpful: in your injector.dart, register this:
-  // i.addSingleton<DeviceTokenRepository>(
-  //   () => DeviceTokenRepository(i.get<DioClient>()),
-  // );
+// i.addSingleton<DeviceTokenRepository>(
+//   () => DeviceTokenRepository(i.get<DioClient>()),
+// );

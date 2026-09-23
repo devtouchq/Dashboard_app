@@ -108,7 +108,7 @@ class _HorizontalBarChartState extends State<HorizontalBarChart>
                   sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 80,
-                    
+
                     getTitlesWidget: (value, _) {
                       final i = value.toInt();
                       if (i < 0 || i >= widget.items.length) {
@@ -127,9 +127,9 @@ class _HorizontalBarChartState extends State<HorizontalBarChart>
                         ),
                       );
                     },
-                    //!-accoroding the documentation the reservation plan should be equal to teh ability of teh code an the 
-                    //the number of teh person present he area is multipied by the people of the people and the people has to vote for the 
-                    //the reservation of the plan they have made 
+                    //!-accoroding the documentation the reservation plan should be equal to teh ability of teh code an the
+                    //the number of teh person present he area is multipied by the people of the people and the people has to vote for the
+                    //the reservation of the plan they have made
                   ),
                 ),
               ),

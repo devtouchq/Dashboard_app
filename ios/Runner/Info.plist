@@ -2,11 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-<key>NSMicrophoneUsageDescription</key>
-<string>This app needs microphone access to recognize your voice.</string>
-
-<key>NSSpeechRecognitionUsageDescription</key>
-<string>This app uses speech recognition to convert your voice into text.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs microphone access to record voice messages for the AI assistant.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

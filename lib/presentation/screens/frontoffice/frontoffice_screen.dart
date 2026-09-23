@@ -60,7 +60,6 @@ class FrontofficeScreen extends StatelessWidget {
               value: '${data.todayOccupancy.toInt()}',
               label: 'Today Occupancy',
             ),
-            
           ],
         ),
         const Gap(12),
@@ -83,21 +82,20 @@ class FrontofficeScreen extends StatelessWidget {
         ),
         const Gap(12),
         // Total Collections and Revenue cards
-            StatCard(
-              //collection icon
-              icon: Icons.collections_outlined,
-              iconColor: DashboardColors.iconOrange,
-              value: CurrencyUtils.format(data.totalCollection, currency),
-              label: 'Total Collections',
-            ),
-            const Gap(12),
-            StatCard(
-              icon: Icons.attach_money,
-              iconColor: DashboardColors.iconTeal,
-              value: CurrencyUtils.format(data.totalRevenue, currency),
-              label: 'Revenue',
-            ),
-         
+        StatCard(
+          //collection icon
+          icon: Icons.collections_outlined,
+          iconColor: DashboardColors.iconOrange,
+          value: CurrencyUtils.format(data.totalCollection, currency),
+          label: 'Total Collections',
+        ),
+        const Gap(12),
+        StatCard(
+          icon: Icons.attach_money,
+          iconColor: DashboardColors.iconTeal,
+          value: CurrencyUtils.format(data.totalRevenue, currency),
+          label: 'Revenue',
+        ),
       ],
     );
   }

@@ -52,7 +52,8 @@ class _MultiLineChartState extends State<MultiLineChart>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _progress = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    _progress =
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
     _controller.forward();
   }
 

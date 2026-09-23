@@ -13,9 +13,13 @@ class DashboardRepository {
   DashboardRepository(this._client, this._storage);
 
   /// POST {baseUrl}/api/DashBoardManagement/DashBoard/MobileAppDashBoardViewRequest
+  /// [fromDate]/[toDate] are only sent when the user picked a range. With
+  /// no range the request goes out exactly as it did before the date
+  /// filter existed, so the server's own default (today) applies and the
+  /// common path can't be broken by date fields it may not expect.
   Future<DashboardData> fetchDashboard({
-    required DateTime fromDate,
-    required DateTime toDate,
+    DateTime? fromDate,
+    DateTime? toDate,
   }) async {
     final body = {
       'AccountId': _storage.accountId ?? '',
@@ -24,8 +28,8 @@ class DashboardRepository {
       'SubModule': _storage.selectedBranch ?? '',
       'UniqueID': _storage.uniqueId ?? '',
       'TabId': '',
-      'FromDate': _formatDate(fromDate),
-      'ToDate': _formatDate(toDate),
+      if (fromDate != null) 'FromDate': _formatDate(fromDate),
+      if (toDate != null) 'ToDate': _formatDate(toDate),
     };
 
     AppLogger.info(_tag, 'fetchDashboard → body=$body');

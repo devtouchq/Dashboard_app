@@ -38,7 +38,8 @@ class _SingleLineChartState extends State<SingleLineChart>
       vsync: this,
       duration: const Duration(milliseconds: 1100),
     );
-    _progress = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+    _progress =
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
     _controller.forward();
   }
 
@@ -83,10 +84,10 @@ class _SingleLineChartState extends State<SingleLineChart>
               borderData: FlBorderData(show: false),
               titlesData: FlTitlesData(
                 show: true,
-                topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false)),
-                rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false)),
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,

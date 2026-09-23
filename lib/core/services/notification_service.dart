@@ -116,10 +116,11 @@ class NotificationService {
       }
       await Future.delayed(delay);
     }
-    AppLogger.info(_tag,
-        'APNS token never arrived after ${attempts}s. Common causes:');
+    AppLogger.info(
+        _tag, 'APNS token never arrived after ${attempts}s. Common causes:');
     AppLogger.info(_tag, '  • Running in iOS Simulator (needs real device)');
-    AppLogger.info(_tag, '  • Push Notifications capability not enabled in Xcode');
+    AppLogger.info(
+        _tag, '  • Push Notifications capability not enabled in Xcode');
     AppLogger.info(_tag, '  • APNs key not uploaded to Firebase Console');
     AppLogger.info(_tag, '  • Bundle ID mismatch between Xcode and Firebase');
     return false;
@@ -295,4 +296,3 @@ class NotificationService {
     }
   }
 }
- 
