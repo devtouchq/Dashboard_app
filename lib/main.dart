@@ -46,12 +46,16 @@ Future<void> main() async {
   // so the badge count is loaded when notifications start arriving.
   await NotificationCenterService().init();
 
-  // Initialize the notification service after Firebase is ready.
-  await NotificationService.init();
-
-  // OPTIONAL: subscribe to a broadcast topic so EVERY user receives
-  // pushes the backend sends to 'all-users'.
-  await NotificationService.subscribeToTopic('all-users');
+  // Push notifications (permission prompt, APNS/FCM token, 'all-users'
+  // topic) are set up here only when someone is already logged in. On a
+  // fresh install they are set up right after the first successful
+  // login instead (see AuthBloc): asking for notifications before the
+  // user has even seen the app, and at the same time iOS asks for Local
+  // Network access, led people to deny the wrong prompt and then see
+  // "network error" at login.
+  if (autoInjector.get<LocalStorageService>().hasSession) {
+    await NotificationService.ensureInitialized();
+  }
 
   runApp(const AyurlivApp());
 }

@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/di/local_storage_service.dart';
+import '../../../core/network/network_exceptions.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../../data/models/auth_data.dart';
@@ -175,6 +177,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       AppLogger.info(_tag, 'BaseUrlSubmitted: cleaned="$cleaned"');
       await _storage.setBaseUrl(cleaned);
       emit(state.copyWith(status: AuthStatus.baseUrlSaved));
+      // Not awaited: this only exists to make iOS show its Local Network
+      // prompt now, on the setup screen, rather than during login.
+      unawaited(_repository.warmUp());
     } catch (e, st) {
       AppLogger.error(_tag, 'baseUrl save failed', error: e, stackTrace: st);
       emit(state.copyWith(
@@ -189,11 +194,24 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     AppLogger.info(_tag, 'LoginSubmitted');
     emit(state.copyWith(status: AuthStatus.loggingIn));
     try {
-      final res = await _repository.login(LoginRequest(
+      final request = LoginRequest(
         accId: event.accountId.trim(),
         username: event.username.trim(),
         password: event.password,
-      ));
+      );
+
+      LoginResponse res;
+      try {
+        res = await _repository.login(request);
+      } on ServerUnreachableException catch (e) {
+        // On a fresh iOS install the first request to a LAN server is
+        // what triggers the Local Network prompt, and that request fails
+        // while the prompt is up. One retry a moment later succeeds once
+        // the user has tapped Allow.
+        AppLogger.info(_tag, 'server unreachable (${e.detail}), retrying once');
+        await Future<void>.delayed(_unreachableRetryDelay);
+        res = await _repository.login(request);
+      }
 
       if (!res.isSuccess) {
         emit(state.copyWith(
@@ -243,6 +261,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         status: AuthStatus.loginSuccess,
         branches: branchesWithAll,
       ));
+
+      // Now that the user is in, ask for notification permission and get
+      // the push token. Not awaited: login must not wait on APNS. When
+      // the token arrives, the tokenStream listener registers it because
+      // the session is already saved.
+      unawaited(NotificationService.ensureInitialized());
+    } on ServerUnreachableException catch (e, st) {
+      AppLogger.error(_tag, 'login: server unreachable', error: e, stackTrace: st);
+      emit(state.copyWith(
+        status: AuthStatus.failure,
+        errorMessage: _unreachableMessage(),
+      ));
     } catch (e, st) {
       AppLogger.error(_tag, 'login failed', error: e, stackTrace: st);
       emit(state.copyWith(
@@ -250,6 +280,27 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         errorMessage: e.toString().replaceFirst('Exception: ', ''),
       ));
     }
+  }
+
+  static const _unreachableRetryDelay = Duration(milliseconds: 1500);
+
+  /// What to tell the user when the server never answered. For a server
+  /// on the local network on iOS, the usual cause is the Local Network
+  /// permission having been denied, so say exactly where to fix it.
+  String _unreachableMessage() {
+    final host = Uri.tryParse(_storage.baseUrl ?? '')?.host ?? '';
+    final onLan = _isPrivateIp(host) ||
+        host == 'localhost' ||
+        host.endsWith('.local') ||
+        (host.isNotEmpty && !host.contains('.'));
+    if (Platform.isIOS && onLan) {
+      return "Couldn't reach the server at $host. Allow Local Network access "
+          'for Ayurlive Dashboard in Settings › Privacy & Security › Local '
+          'Network, make sure this phone is on the same Wi-Fi as the '
+          'server, then try again.';
+    }
+    return "Couldn't reach the server${host.isEmpty ? '' : ' at $host'}. "
+        'Check the server address and your internet connection, then try again.';
   }
 
   /// Helper: attempt to register the current device's FCM token with the

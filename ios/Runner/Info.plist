@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Ayurlive Dashboard connects to your clinic's server on the local Wi-Fi network. Without this permission the app cannot log in or load your dashboard.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs microphone access to record voice messages and talk to the AI assistant.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

@@ -51,10 +51,39 @@ class NotificationService {
       StreamController<String>.broadcast();
   static Stream<String> get tokenStream => _tokenController.stream;
 
+  static bool _initialized = false;
+  static Future<void>? _initInFlight;
+
+  /// Whether [init] has completed.
+  static bool get isInitialized => _initialized;
+
+  /// Runs [init] and the broadcast-topic subscription once. Safe to call
+  /// from several places: later calls wait for, or reuse, the first.
+  ///
+  /// On a fresh install this is called after the first successful login,
+  /// not at startup, so the only system prompt during setup and login is
+  /// the one that matters for connectivity (iOS Local Network access).
+  static Future<void> ensureInitialized() {
+    if (_initialized) return Future.value();
+    return _initInFlight ??= () async {
+      try {
+        await init();
+        await subscribeToTopic('all-users');
+      } catch (e, st) {
+        AppLogger.error(_tag, 'ensureInitialized failed',
+            error: e, stackTrace: st);
+      } finally {
+        _initInFlight = null;
+      }
+    }();
+  }
+
   // ─────────────────────────────────────────────────────────────
-  //  Init — call once from main() AFTER Firebase.initializeApp()
+  //  Init — AFTER Firebase.initializeApp(). Prefer ensureInitialized().
   // ─────────────────────────────────────────────────────────────
   static Future<void> init() async {
+    if (_initialized) return;
+    _initialized = true;
     AppLogger.info(_tag, 'init');
 
     // 1. Request user permission (Android 13+ needs runtime, iOS always needs).
