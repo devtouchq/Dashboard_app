@@ -104,6 +104,7 @@ class _SpeakControls {
   final String audioB64;
   final String audioUrl;
   final String encoding;
+  final String notification;
 
   const _SpeakControls({
     required this.reply,
@@ -112,6 +113,7 @@ class _SpeakControls {
     required this.audioB64,
     required this.audioUrl,
     required this.encoding,
+    required this.notification,
   });
 }
 
@@ -352,11 +354,20 @@ class ChatRepository {
   static const _ctlTtsLang = 'hiddenAITtsLang';
   static const _ctlTtsAudio = 'hiddenAITtsAudio';
 
-  /// POST {baseUrl}/api/AIAssistant/Speak
+  /// Where the server puts the text of a toast (errors included).
+  static const _ctlNotification = 'hiddenNotification';
+
+  /// Where the voice assistant sends the recognised question. The answer
+  /// comes back in the same shape the Speak action uses (TTS controls
+  /// filled in), so switching back is just this constant.
+  static const _voiceEndpoint = '/api/AIAssistant/SendMessage';
+
+  /// POST {baseUrl}[_voiceEndpoint]
   ///
   /// Speech is recognised on the phone; [text] is what the user said.
   /// The server answers it in [languageCode] and returns the answer as
-  /// text plus Google Cloud Text-to-Speech audio in the same language.
+  /// text plus Google Cloud Text-to-Speech audio in the same language,
+  /// which the voice screen plays through the speaker.
   ///
   /// Request: the same compressed ButtonClickedActionArgs envelope as
   /// [sendMessage], mirroring the web client — hiddenSelectedCompany,
@@ -377,12 +388,19 @@ class ChatRepository {
     if (question.isEmpty) {
       return const SpeakResult.failure("Didn't catch that — tap to try again.");
     }
-    AppLogger.info(
-        _tag, 'speak → question="${question.length} chars", lang=$languageCode');
+    AppLogger.info(_tag,
+        'speak → $_voiceEndpoint question="${question.length} chars", lang=$languageCode');
 
+    // The server only writes back to controls that were sent, so the
+    // notification slots must be present or its error toast is lost
+    // (the response then just says MessageTitle="Information"). The rest
+    // mirror the web client's surface, in its order.
     final body = _buildActionArgs(
       languageCode: languageCode,
       extraControls: [
+        _hiddenControl('hiddenSelectedSubModule', ''),
+        _hiddenControl(_ctlNotification, ''),
+        _hiddenControl('hiddenNotificationToasterId', ''),
         _hiddenControl('hiddenAIQuestion', question),
         _hiddenControl('hiddenAIResponse', ''),
       ],
@@ -390,6 +408,12 @@ class ChatRepository {
         _hiddenControl(_ctlTtsText, ''),
         _hiddenControl(_ctlTtsLang, ''),
         _hiddenControl(_ctlTtsAudio, ''),
+        {
+          'type': 'LABEL',
+          'ID': 'labelCurrentUser',
+          'WaterMarkText': '',
+          'Text': _storage.userId ?? '',
+        },
       ],
     );
 
@@ -399,7 +423,7 @@ class ChatRepository {
           _tag, 'speak request compressed to ${compressedPayload.length} chars');
 
       final response = await _client.dio.post(
-        '/api/AIAssistant/Speak',
+        _voiceEndpoint,
         data: compressedPayload,
         options: _actionOptions(sendTimeout: _aiSendTimeout),
       );
@@ -412,6 +436,13 @@ class ChatRepository {
       if (data == null) {
         return const SpeakResult.failure('Could not read server response');
       }
+
+      // Everything outside the surface is small scalars (MessageTitle,
+      // AwaitSeconds, NormalReq…) — log them so a server-side refusal is
+      // visible instead of just "nothing usable".
+      AppLogger.info(
+          _tag,
+          'speak envelope: ${data.entries.where((e) => e.key != 'SufaceState' && e.key != 'Surface' && e.key != 'AuthTocken').map((e) => '${e.key}=${_short(e.value)}').join(', ')}');
 
       final actionMessage = (data['ActionMessage'] ?? '').toString().trim();
       if (data['IsSuccess'] == false ||
@@ -444,8 +475,11 @@ class ChatRepository {
       if (reply.isEmpty && found.audioB64.isEmpty && audioUrl.isEmpty) {
         AppLogger.info(_tag,
             'speak: nothing usable in response. Top-level keys: ${data.keys.toList()}');
-        return const SpeakResult.failure(
-            'The assistant did not return an answer');
+        // A toast (MessageTitle + hiddenNotification) is how the server
+        // explains why it did not answer.
+        return SpeakResult.failure(found.notification.isNotEmpty
+            ? SpeakResult.stripHtml(found.notification)
+            : 'The assistant did not return an answer');
       }
 
       Uint8List? audioBytes;
@@ -561,7 +595,14 @@ class ChatRepository {
       audioB64: audioB64,
       audioUrl: audioUrl,
       encoding: encoding,
+      notification: exact(_ctlNotification),
     );
+  }
+
+  /// Log-friendly form of an envelope value: long strings are cut short.
+  String _short(Object? v) {
+    final s = v is String ? '"$v"' : '$v';
+    return s.length > 200 ? '${s.substring(0, 200)}…(${s.length}ch)' : s;
   }
 
   /// `data:audio/mp3;base64,AAAA…` → `AAAA…`

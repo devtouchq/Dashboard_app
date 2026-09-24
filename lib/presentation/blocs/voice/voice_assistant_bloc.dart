@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -177,9 +178,14 @@ class VoiceAssistantState extends Equatable {
 
   /// Whether the device's recogniser handles [lang]. Unknown counts as
   /// supported.
-  bool supports(VoiceLanguage lang) =>
-      supportedCodes.isEmpty ||
-      supportedCodes.contains(lang.code.toLowerCase());
+  bool supports(VoiceLanguage lang) {
+    if (supportedCodes.isEmpty) return true;
+    final code = lang.code.toLowerCase();
+    if (supportedCodes.contains(code)) return true;
+    // Some devices list just `ml`, or another region of the language.
+    final base = code.split('-').first;
+    return supportedCodes.any((c) => c == base || c.startsWith('$base-'));
+  }
 
   VoiceAssistantState copyWith({
     VoicePhase? phase,
@@ -221,7 +227,7 @@ class VoiceAssistantState extends Equatable {
 //  Bloc
 // ─────────────────────────────────────────────────────────────
 /// Runs one hands-free voice conversation: recognise speech on the
-/// device until the user pauses, send the text to the Speak endpoint,
+/// device until the user pauses, send the text to the SendMessage API,
 /// play the spoken answer, then listen again. The screen only renders
 /// state and forwards taps.
 class VoiceAssistantBloc
@@ -254,6 +260,14 @@ class VoiceAssistantBloc
   final LocalStorageService _storage;
   final AudioPlayer _player = AudioPlayer();
 
+  /// Reads the answer aloud on the device when the server sends text but
+  /// no audio.
+  final FlutterTts _tts = FlutterTts();
+  bool _ttsSpeaking = false;
+
+  /// Android's engine rejects longer input; answers can be big tables.
+  static const _maxTtsChars = 3500;
+
   StreamSubscription<PlayerState>? _playerSub;
   Timer? _resumeTimer;
 
@@ -281,9 +295,26 @@ class VoiceAssistantBloc
   /// Silent restarts used since the user last spoke or tapped.
   int _silentRestarts = 0;
 
+  /// When the current listen session started, and whether the mic has
+  /// picked up any sound since. A recogniser that can't handle the
+  /// language closes the session almost at once, without an error and
+  /// without ever reporting a level; real silence takes seconds.
+  DateTime? _listenStartedAt;
+  bool _heardLevel = false;
+  static const _instantEnd = Duration(milliseconds: 2500);
+
+  /// Gap before an automatic restart; restarting at once makes Android's
+  /// recogniser answer error_busy.
+  static const _restartGap = Duration(milliseconds: 400);
+
   String _unsupportedMessage(VoiceLanguage lang) =>
       '${lang.name} speech recognition is not available on this device. '
       'Choose another language.';
+
+  String _recogniserMissingMessage(VoiceLanguage lang) =>
+      "This phone's voice input can't listen in ${lang.name}. "
+      'Set Google as the voice input app and download ${lang.name} '
+      '(Google app → Settings → Voice), or choose another language.';
 
   VoiceAssistantBloc(this._repository, this._speech, this._storage)
       : super(VoiceAssistantState(
@@ -306,6 +337,75 @@ class VoiceAssistantBloc
         add(_PlaybackFinished(_generation));
       }
     });
+    _initTts();
+  }
+
+  void _initTts() {
+    _tts.setCompletionHandler(() {
+      _ttsSpeaking = false;
+      add(_PlaybackFinished(_generation));
+    });
+    _tts.setCancelHandler(() => _ttsSpeaking = false);
+    _tts.setErrorHandler((msg) {
+      AppLogger.info(_tag, 'tts error: $msg');
+      _ttsSpeaking = false;
+      // Carry on as if the answer had been read.
+      add(_PlaybackFinished(_generation));
+    });
+    unawaited(() async {
+      try {
+        // Completion is reported through the handler above.
+        await _tts.awaitSpeakCompletion(false);
+        if (Platform.isIOS) {
+          // The recogniser leaves the session in record mode; without
+          // this iOS plays speech through the earpiece, quietly.
+          await _tts.setIosAudioCategory(
+            IosTextToSpeechAudioCategory.playAndRecord,
+            [
+              IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
+              IosTextToSpeechAudioCategoryOptions.allowBluetooth,
+            ],
+            IosTextToSpeechAudioMode.defaultMode,
+          );
+        }
+      } catch (e) {
+        AppLogger.info(_tag, 'tts setup failed: $e');
+      }
+    }());
+  }
+
+  /// Speak [text] with the device's TTS in [language]. Returns false when
+  /// it could not start, so the caller can fall back to showing the text.
+  Future<bool> _speakWithTts(String text, VoiceLanguage language) async {
+    var toSay = text.trim();
+    if (toSay.isEmpty) return false;
+    if (toSay.length > _maxTtsChars) {
+      // Cut at the last sentence end before the limit.
+      final cut = toSay.substring(0, _maxTtsChars);
+      final end = cut.lastIndexOf(RegExp(r'[.!?।]\s'));
+      toSay = end > 0 ? cut.substring(0, end + 1) : cut;
+    }
+    try {
+      final available = await _tts.isLanguageAvailable(language.code);
+      if (available == true) {
+        await _tts.setLanguage(language.code);
+      } else {
+        AppLogger.info(_tag,
+            'tts has no ${language.code} voice, using the device default');
+      }
+      _ttsSpeaking = true;
+      final started = await _tts.speak(toSay);
+      if (started != 1) {
+        _ttsSpeaking = false;
+        return false;
+      }
+      AppLogger.info(_tag, 'tts speaking ${toSay.length} chars');
+      return true;
+    } catch (e, st) {
+      _ttsSpeaking = false;
+      AppLogger.error(_tag, 'tts failed', error: e, stackTrace: st);
+      return false;
+    }
   }
 
   // ── Listening ────────────────────────────────────────────────
@@ -344,6 +444,8 @@ class VoiceAssistantBloc
     ));
 
     _pauseShortened = false;
+    _listenStartedAt = DateTime.now();
+    _heardLevel = false;
     final started = await _speech.startListening(
       localeId: state.language.code,
       // Long at first so the user has time to start; shortened to
@@ -373,6 +475,7 @@ class VoiceAssistantBloc
   void _onLevel(_LevelChanged event, Emitter<VoiceAssistantState> emit) {
     if (event.generation != _generation) return;
     if (state.phase != VoicePhase.listening) return;
+    if (event.level > 0) _heardLevel = true;
     emit(state.copyWith(level: event.level));
   }
 
@@ -408,8 +511,31 @@ class VoiceAssistantBloc
     if (event.generation != _generation) return;
     if (state.phase != VoicePhase.listening) return;
 
+    // Android reports mic levels even for a session it is about to
+    // refuse, so only the duration tells a refusal from real silence.
+    final startedAt = _listenStartedAt;
+    final elapsed =
+        startedAt == null ? null : DateTime.now().difference(startedAt);
+    final instant = elapsed != null && elapsed < _instantEnd;
+    AppLogger.info(_tag,
+        'listen ended: lang=${state.language.code} after ${elapsed?.inMilliseconds}ms, heard=${state.heardSpeech}, level=$_heardLevel');
+
     if (state.heardSpeech) {
       await _submit(event.generation, state.liveTranscript, emit);
+    } else if (instant) {
+      // The recogniser refused the session rather than timing out —
+      // almost always because it has no model for this language.
+      // Restarting just loops into error_busy.
+      AppLogger.info(_tag,
+          'session for ${state.language.code} ended instantly; recogniser does not support it');
+      _silentRestarts = 0;
+      await _speech.cancel();
+      emit(state.copyWith(
+        phase: VoicePhase.error,
+        level: 0,
+        liveTranscript: '',
+        error: _recogniserMissingMessage(state.language),
+      ));
     } else {
       // Nothing said before the session closed. Keep the conversation
       // open a little longer, then rest.
@@ -425,6 +551,10 @@ class VoiceAssistantBloc
       _silentRestarts++;
       AppLogger.info(
           _tag, 'nothing heard, listening again ($_silentRestarts)');
+      final gen = _generation;
+      await _speech.cancel();
+      await Future<void>.delayed(_restartGap);
+      if (gen != _generation || isClosed) return;
       await _startListening(emit);
       return;
     }
@@ -477,9 +607,21 @@ class VoiceAssistantBloc
     );
     emit(state.copyWith(phase: VoicePhase.speaking, lastExchange: exchange));
 
-    if (state.muted || !result.hasAudio) {
+    if (state.muted) {
       // Nothing to hear: give the reply a moment on screen, then listen.
       _scheduleResume(gen, _mutedReadPause);
+      return;
+    }
+
+    if (!result.hasAudio) {
+      // The server sent text only: read it aloud on the device. The
+      // completion handler moves us back to listening.
+      await _stopPlayback();
+      if (gen != _generation || isClosed) return;
+      final spoke = await _speakWithTts(result.replyPlainText, language);
+      if (!spoke && gen == _generation && !isClosed) {
+        _scheduleResume(gen, _mutedReadPause);
+      }
       return;
     }
 
@@ -526,6 +668,14 @@ class VoiceAssistantBloc
       if (_player.playing) await _player.stop();
     } catch (e) {
       AppLogger.info(_tag, 'stop playback failed: $e');
+    }
+    if (_ttsSpeaking) {
+      _ttsSpeaking = false;
+      try {
+        await _tts.stop();
+      } catch (e) {
+        AppLogger.info(_tag, 'stop tts failed: $e');
+      }
     }
   }
 
@@ -593,7 +743,9 @@ class VoiceAssistantBloc
     final muted = !state.muted;
     await _storage.setVoiceMuted(muted);
     emit(state.copyWith(muted: muted));
-    if (muted && state.phase == VoicePhase.speaking && _player.playing) {
+    if (muted &&
+        state.phase == VoicePhase.speaking &&
+        (_player.playing || _ttsSpeaking)) {
       // Cut the current answer short and go back to listening.
       final gen = _generation;
       await _stopPlayback();

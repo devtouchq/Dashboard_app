@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:speech_to_text/speech_recognition_error.dart';
@@ -274,10 +275,16 @@ class SpeechService {
     if (cached != null) return cached;
     final ids = await availableLocaleIds();
     final codes = ids.map(normaliseLocale).toSet();
-    // A list this short is not the real capability of the device.
-    _supportedCodes = codes.length < 5 ? const <String>{} : codes;
+    // On Android the list often holds only the downloaded offline
+    // languages, while Google's online recogniser handles many more
+    // (Malayalam, Tamil…). Don't block anything there: if a language
+    // really is unsupported, listening fails with
+    // error_language_not_supported and the user is told then.
+    // A very short list isn't the real capability of the device either.
+    final trusted = !Platform.isAndroid && codes.length >= 5;
+    _supportedCodes = trusted ? codes : const <String>{};
     AppLogger.info(_tag,
-        'device recognises ${ids.length} locales${_supportedCodes!.isEmpty ? ' (list not trusted)' : ''}');
+        'device recognises ${ids.length} locales${trusted ? '' : ' (list not trusted)'}: ${codes.join(', ')}');
     return _supportedCodes!;
   }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,12 +7,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 import 'package:gap/gap.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:record/record.dart' show Amplitude;
 
 import '../../../core/constants/section_theme.dart';
 import '../../../core/constants/text_styles.dart';
+import '../../../core/constants/voice_languages.dart';
 import '../../../core/di/injector.dart';
-import '../../../core/services/audio_recorder_service.dart';
+import '../../../core/di/local_storage_service.dart';
+import '../../../core/services/speech_service.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../../data/models/chat.model.dart';
 import '../../blocs/chat/chat_bloc.dart';
@@ -41,11 +43,18 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
   final _scrollController = ScrollController();
   final _inputFocus = FocusNode();
 
-  // ── Voice messages ────────────────────────────────────────────
+  // ── Voice input (speech → text) ───────────────────────────────
   /// Drag this far left of the mic to cancel instead of sending.
   static const _cancelSlideDistance = 90.0;
 
-  final _recorder = autoInjector.get<AudioRecorderService>();
+  /// Longest a single hold can listen for.
+  static const _maxListen = Duration(seconds: 60);
+
+  /// After release, how long to wait for the recogniser's final words.
+  static const _finalResultWait = Duration(milliseconds: 1500);
+
+  final _speech = autoInjector.get<SpeechService>();
+  final _storage = autoInjector.get<LocalStorageService>();
 
   bool _isRecording = false;
   bool _willCancel = false;
@@ -53,13 +62,21 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
   double _level = 0;
   Duration _elapsed = Duration.zero;
   Timer? _elapsedTimer;
-  StreamSubscription<Amplitude>? _amplitudeSub;
+
+  /// Words recognised so far in the current hold.
+  String _transcript = '';
+
+  /// Completed by the recogniser's final result, so release can wait for
+  /// the last words instead of sending a half sentence.
+  Completer<void>? _finalResult;
+
+  /// Bumped per hold so a late callback from an earlier one is ignored.
+  int _listenGen = 0;
 
   @override
   void dispose() {
     _elapsedTimer?.cancel();
-    _amplitudeSub?.cancel();
-    if (_isRecording) _recorder.cancel();
+    if (_isRecording) _speech.cancel();
     _inputController.dispose();
     _scrollController.dispose();
     _inputFocus.dispose();
@@ -76,25 +93,53 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
   }
 
   // ─────────────────────────────────────────────────────────────
-  //  Hold to record, release to send the audio file itself.
+  //  Hold to talk: speech is turned into text on the phone, and on
+  //  release that text is sent like a typed message.
   // ─────────────────────────────────────────────────────────────
   Future<void> _startRecording() async {
     if (_isRecording) return;
 
-    // Close the keyboard so the recording bar is fully visible.
+    // Close the keyboard so the listening bar is fully visible.
     _inputFocus.unfocus();
     HapticFeedback.mediumImpact();
 
+    final gen = ++_listenGen;
+    _finalResult = Completer<void>();
     setState(() {
       _isRecording = true;
       _willCancel = false;
       _dragDx = 0;
       _level = 0;
       _elapsed = Duration.zero;
+      _transcript = '';
     });
 
-    final started = await _recorder.start(
-      onFailure: (_, message) {
+    final language = VoiceLanguages.byCode(_storage.voiceLanguageCode);
+    final started = await _speech.startListening(
+      localeId: language.code,
+      // The finger decides when the sentence ends, not a pause.
+      pauseFor: _maxListen,
+      listenFor: _maxListen,
+      onResult: (text, isFinal) {
+        if (gen != _listenGen || !mounted) return;
+        setState(() => _transcript = text);
+        if (isFinal) _completeFinal();
+      },
+      // The recogniser closed the session on its own; whatever it heard
+      // is kept and sent on release.
+      onDone: _completeFinal,
+      onSoundLevel: (raw) {
+        if (gen != _listenGen || !mounted || !_isRecording) return;
+        // speech_to_text: about -2..10 on Android, -50..0 dB on iOS.
+        final level = Platform.isIOS ? (raw + 50) / 50 : (raw + 2) / 12;
+        setState(() => _level = level.clamp(0.0, 1.0));
+      },
+      onFailure: (reason, message) {
+        if (gen != _listenGen) return;
+        _completeFinal();
+        // Nothing heard is not worth a message while still holding;
+        // release handles the empty case.
+        if (reason == SpeechFailure.noSpeech && _transcript.isNotEmpty) return;
         _stopTicking();
         if (!mounted) return;
         setState(() {
@@ -108,17 +153,9 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
     if (!started) return;
     if (!mounted) {
       // Screen went away while the permission prompt was up.
-      await _recorder.cancel();
+      await _speech.cancel();
       return;
     }
-
-    _amplitudeSub?.cancel();
-    _amplitudeSub = _recorder.amplitude().listen((amp) {
-      if (!mounted) return;
-      // dBFS: about -60 when silent, 0 at the loudest. Map to 0..1.
-      final normalised = ((amp.current + 60) / 60).clamp(0.0, 1.0);
-      setState(() => _level = normalised);
-    });
 
     _elapsedTimer?.cancel();
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (t) {
@@ -128,53 +165,66 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
       }
       final elapsed = Duration(seconds: t.tick);
       setState(() => _elapsed = elapsed);
-      // Don't let a forgotten finger record forever.
-      if (elapsed >= AudioRecorderService.maxDuration) _finishRecording();
+      // Don't let a forgotten finger listen forever.
+      if (elapsed >= _maxListen) _finishRecording();
     });
   }
 
-  /// Release — stop recording and send the file.
+  void _completeFinal() {
+    final c = _finalResult;
+    if (c != null && !c.isCompleted) c.complete();
+  }
+
+  /// Release — stop listening and send what was said as text.
   Future<void> _finishRecording() async {
     if (!_isRecording) return;
+    final gen = _listenGen;
     _stopTicking();
-
-    final recording = await _recorder.stop();
-    if (!mounted) return;
 
     setState(() {
       _isRecording = false;
       _willCancel = false;
+      _level = 0;
     });
 
-    if (recording == null) {
-      _showSnack('Too short — hold the mic to record.');
+    // stop() makes the recogniser deliver its final result; give it a
+    // moment so the last word isn't lost.
+    await _speech.stop();
+    final pending = _finalResult;
+    if (pending != null && !pending.isCompleted) {
+      await pending.future.timeout(_finalResultWait, onTimeout: () {});
+    }
+    if (!mounted || gen != _listenGen) return;
+
+    final text = _transcript.trim();
+    _transcript = '';
+    if (text.isEmpty) {
+      _showSnack("Didn't catch that — hold the mic and speak.");
       return;
     }
 
-    context.read<ChatBloc>().add(ChatAudioSent(
-          path: recording.file.path,
-          duration: recording.duration,
-        ));
+    AppLogger.info('ChatScreen', 'voice → text (${text.length} chars)');
+    context.read<ChatBloc>().add(ChatMessageSent(text));
     _scrollToBottom();
   }
 
-  /// Slid away from the mic — bin the recording.
+  /// Slid away from the mic — throw the words away.
   Future<void> _cancelRecording() async {
     if (!_isRecording) return;
+    _listenGen++;
     _stopTicking();
     HapticFeedback.lightImpact();
-    await _recorder.cancel();
+    await _speech.cancel();
     if (!mounted) return;
     setState(() {
       _isRecording = false;
       _willCancel = false;
+      _transcript = '';
     });
   }
 
   void _stopTicking() {
     _elapsedTimer?.cancel();
-    _amplitudeSub?.cancel();
-    _amplitudeSub = null;
   }
 
   void _showSnack(String message) {
@@ -508,7 +558,9 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: enabled ? () => _showSnack('Hold the mic to talk') : null,
+      onTap: enabled
+          ? () => _showSnack('Hold the mic and speak — release to send')
+          : null,
       onLongPressStart: enabled ? (_) => _startRecording() : null,
       onLongPressMoveUpdate: enabled
           ? (details) {
@@ -560,7 +612,8 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
     );
   }
 
-  /// Replaces the text field while holding the mic.
+  /// Replaces the text field while holding the mic: timer, live words
+  /// (or a level meter before any), and the cancel hint.
   Widget _recordingIndicator() {
     final cancelling = _willCancel;
     return Container(
@@ -602,7 +655,21 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
                   )
                 : Row(
                     children: [
-                      Expanded(child: _levelMeter()),
+                      // The words as they are recognised; the level meter
+                      // until the first one arrives.
+                      Expanded(
+                        child: _transcript.trim().isEmpty
+                            ? _levelMeter()
+                            : Text(
+                                _transcript,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: DashboardColors.textOnDark,
+                                  fontSize: 13,
+                                ),
+                              ),
+                      ),
                       const Gap(10),
                       KStyles().reg(
                         text: '◀ Slide to cancel',
