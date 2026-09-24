@@ -22,6 +22,8 @@ class LocalStorageService {
   static const _kSavedUsername = 'saved_username';
   static const _kSavedAccountId = 'saved_account_id';
   static const _kBranchList = 'branch_list';
+  static const _kVoiceLanguage = 'voice_language';
+  static const _kVoiceMuted = 'voice_muted';
 
   late final SharedPreferences _prefs;
 
@@ -144,6 +146,22 @@ class LocalStorageService {
   bool get rememberMe => _prefs.getBool(_kRememberMe) ?? false;
   String? get savedAccountId => _prefs.getString(_kSavedAccountId);
   String? get savedUsername => _prefs.getString(_kSavedUsername);
+
+  // ───────────────── Voice assistant ────────────
+  /// BCP-47 code of the language the voice assistant listens and replies
+  /// in, e.g. `en-IN`. Null until the user picks one.
+  String? get voiceLanguageCode => _prefs.getString(_kVoiceLanguage);
+
+  Future<bool> setVoiceLanguageCode(String code) {
+    AppLogger.info(_tag, 'setVoiceLanguageCode: $code');
+    return _prefs.setString(_kVoiceLanguage, code);
+  }
+
+  /// Whether the spoken reply is muted. Survives the session so a user
+  /// who muted once isn't blasted with audio next time.
+  bool get voiceMuted => _prefs.getBool(_kVoiceMuted) ?? false;
+
+  Future<bool> setVoiceMuted(bool muted) => _prefs.setBool(_kVoiceMuted, muted);
 
   // ───────────────── Clear / logout ────────────
   /// Clear the login session but keep baseUrl and remember-me info.

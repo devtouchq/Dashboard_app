@@ -32,6 +32,17 @@ class ChatAudioSent extends ChatEvent {
   List<Object?> get props => [path, duration];
 }
 
+/// A completed turn from the voice assistant: the server already answered
+/// it over the Speak endpoint, so this only appends both sides to the
+/// conversation for the user to read back. Nothing is re-sent.
+class ChatVoiceExchangeAdded extends ChatEvent {
+  final String transcript;
+  final String reply;
+  const ChatVoiceExchangeAdded({required this.transcript, required this.reply});
+  @override
+  List<Object?> get props => [transcript, reply];
+}
+
 class ChatMessageRetried extends ChatEvent {
   final String messageId;
   const ChatMessageRetried(this.messageId);
@@ -81,6 +92,7 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
   ChatBloc(this._repository) : super(const ChatState()) {
     on<ChatMessageSent>(_onSent);
     on<ChatAudioSent>(_onAudioSent);
+    on<ChatVoiceExchangeAdded>(_onVoiceExchange);
     on<ChatMessageRetried>(_onRetry);
     on<ChatCleared>(_onCleared);
 
@@ -140,6 +152,39 @@ class ChatBloc extends Bloc<ChatEvent, ChatState> {
 
     await _callApi(userMsg, emit);
   }
+
+  void _onVoiceExchange(
+      ChatVoiceExchangeAdded event, Emitter<ChatState> emit) {
+    final transcript = event.transcript.trim();
+    final reply = event.reply.trim();
+    if (transcript.isEmpty && reply.isEmpty) return;
+
+    final now = DateTime.now();
+    final added = <ChatMessage>[
+      if (transcript.isNotEmpty)
+        ChatMessage(
+          id: _nextId(),
+          text: transcript,
+          sender: MessageSender.user,
+          timestamp: now,
+        ),
+      if (reply.isNotEmpty)
+        ChatMessage(
+          id: _nextId(),
+          text: reply,
+          sender: MessageSender.bot,
+          timestamp: now,
+          // The Speak endpoint answers in plain text for the speech
+          // synthesiser, but guard in case it ever sends markup.
+          isHtml: _looksLikeHtml(reply),
+        ),
+    ];
+
+    emit(state.copyWith(messages: [...state.messages, ...added]));
+  }
+
+  static final _htmlTag = RegExp(r'<\s*[a-zA-Z][^>]*>');
+  bool _looksLikeHtml(String s) => _htmlTag.hasMatch(s);
 
   Future<void> _onRetry(
       ChatMessageRetried event, Emitter<ChatState> emit) async {

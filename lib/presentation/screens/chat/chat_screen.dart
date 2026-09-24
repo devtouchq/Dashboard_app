@@ -15,6 +15,7 @@ import '../../../core/services/audio_recorder_service.dart';
 import '../../../core/utils/app_logger.dart';
 import '../../../data/models/chat.model.dart';
 import '../../blocs/chat/chat_bloc.dart';
+import 'voice_assistant_screen.dart';
 
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key});
@@ -355,6 +356,30 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
               ],
             ),
           ),
+          BlocBuilder<ChatBloc, ChatState>(
+            buildWhen: (a, b) => a.isBotTyping != b.isBotTyping,
+            builder: (context, state) => IconButton(
+              // Not while a typed question is in flight: the two flows
+              // would otherwise be answering at the same time.
+              onPressed: state.isBotTyping ? null : _openVoiceAssistant,
+              icon: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: SectionTheme.home.accent
+                      .withValues(alpha: state.isBotTyping ? 0.08 : 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.graphic_eq_rounded,
+                  color: SectionTheme.home.accent
+                      .withValues(alpha: state.isBotTyping ? 0.4 : 1),
+                  size: 20,
+                ),
+              ),
+              tooltip: 'Talk to the assistant',
+            ),
+          ),
           IconButton(
             onPressed: _confirmClear,
             icon: const Icon(Icons.delete_outline,
@@ -364,6 +389,14 @@ class _ChatScreenViewState extends State<_ChatScreenView> {
         ],
       ),
     );
+  }
+
+  /// Opens the hands-free voice conversation on top of this chat.
+  void _openVoiceAssistant() {
+    if (_isRecording) return; // a hold-to-record is in progress
+    _inputFocus.unfocus();
+    HapticFeedback.lightImpact();
+    VoiceAssistantScreen.open(context);
   }
 
   Widget _inputBar() {

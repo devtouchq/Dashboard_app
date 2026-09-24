@@ -38,6 +38,8 @@ dependencies:
   flutter_local_notifications: ^17.2.3
   flutter_widget_from_html_core: ^0.17.2
   record: ^7.1.1
+  # On-device speech recognition for the voice assistant.
+  speech_to_text: ^7.5.0
   just_audio: ^0.10.6
   path_provider: ^2.1.6
 dev_dependencies:

@@ -3,8 +3,10 @@ import 'package:auto_injector/auto_injector.dart';
 import '../../data/repositories/chat_repo.dart';
 import '../../data/repositories/device_token_repo.dart';
 import '../../presentation/blocs/chat/chat_bloc.dart';
+import '../../presentation/blocs/voice/voice_assistant_bloc.dart';
 import '../network/dio_client.dart';
 import '../services/audio_recorder_service.dart';
+import '../services/speech_service.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/dashboard_repository.dart';
 import '../../presentation/blocs/auth/auth_bloc.dart';
@@ -32,6 +34,8 @@ final autoInjector = AutoInjector(
     );
     // Voice messages in the AI chat.
     i.addSingleton<AudioRecorderService>(() => AudioRecorderService());
+    // On-device speech recognition for the voice assistant.
+    i.addSingleton<SpeechService>(() => SpeechService());
 
     i.addSingleton<DeviceTokenRepository>(
       // ← ADD THIS
@@ -50,6 +54,13 @@ final autoInjector = AutoInjector(
 // NOT singleton — a fresh bloc per chat session so the conversation
 // resets when the user reopens the chat.
     i.add<ChatBloc>(() => ChatBloc(i.get<ChatRepository>()));
+    // One per voice session too — it owns the mic and the player while
+    // the voice screen is open and releases both when it closes.
+    i.add<VoiceAssistantBloc>(() => VoiceAssistantBloc(
+          i.get<ChatRepository>(),
+          i.get<SpeechService>(),
+          i.get<LocalStorageService>(),
+        ));
   },
 );
 

@@ -105,6 +105,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   String? _selectedBranchValue;
 
+  /// True while the AI chat is pushed on top of this screen. Polling the
+  /// dashboard is pointless then (nothing visible changes) and it competes
+  /// with the assistant's own, much slower requests.
+  bool _chatOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -146,10 +151,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               () => _unreadCount = NotificationCenterService().unreadCount);
         }
       });
-      context.read<DashboardBloc>().add(
-            const DashboardPollingStarted(),
-          );
+      // Coming back to the app while the chat is still open: leave polling
+      // off, _openChat restarts it when the chat closes.
+      if (!_chatOpen) {
+        context.read<DashboardBloc>().add(
+              const DashboardPollingStarted(),
+            );
+      }
     }
+  }
+
+  /// Opens the AI chat with dashboard polling paused for as long as it's
+  /// on screen, then refreshes once so the dashboard catches up.
+  Future<void> _openChat(BuildContext context) async {
+    final bloc = context.read<DashboardBloc>();
+    _chatOpen = true;
+    bloc.add(const DashboardPollingStopped());
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ChatScreen()),
+    );
+
+    _chatOpen = false;
+    if (!mounted) return;
+    bloc.add(const DashboardRefreshed());
+    bloc.add(const DashboardPollingStarted());
   }
 
   Future<void> _onBranchChanged(Branch newBranch) async {
@@ -218,11 +244,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   //*------------Chat floating action button--------
   Widget _chatFab(BuildContext context) {
     return FloatingActionButton.extended(
-      onPressed: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ChatScreen()),
-        );
-      },
+      onPressed: () => _openChat(context),
       backgroundColor: SectionTheme.home.accent,
       foregroundColor: Colors.white,
       elevation: 6,
