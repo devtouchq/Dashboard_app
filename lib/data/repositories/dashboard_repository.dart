@@ -63,9 +63,9 @@ class DashboardRepository {
     }
   }
 
-  /// Date format expected by the server: dd/MM/yyyy.
+  /// Date format expected by the server: yyyy-MM-dd (e.g. "2026-09-20").
   String _formatDate(DateTime dt) {
     String pad(int v) => v.toString().padLeft(2, '0');
-    return '${pad(dt.day)}/${pad(dt.month)}/${dt.year}';
+    return '${dt.year}-${pad(dt.month)}-${pad(dt.day)}';
   }
 }
