@@ -303,6 +303,13 @@ class VoiceAssistantBloc
   bool _heardLevel = false;
   static const _instantEnd = Duration(milliseconds: 2500);
 
+  /// Sessions in a row that closed instantly. One on its own is normal
+  /// right after a language switch (the recogniser is still loading the
+  /// new model), so only a repeat means the language is unsupported.
+  int _instantEnds = 0;
+  static const _maxInstantEnds = 2;
+  static const _instantRetryGap = Duration(milliseconds: 800);
+
   /// Gap before an automatic restart; restarting at once makes Android's
   /// recogniser answer error_busy.
   static const _restartGap = Duration(milliseconds: 400);
@@ -488,6 +495,7 @@ class VoiceAssistantBloc
     // retry again for the next one, and reset the silence budget.
     _retriedListen = false;
     _silentRestarts = 0;
+    _instantEnds = 0;
 
     // The user has started talking: from now on a 2-second pause means
     // the sentence is finished.
@@ -521,13 +529,24 @@ class VoiceAssistantBloc
         'listen ended: lang=${state.language.code} after ${elapsed?.inMilliseconds}ms, heard=${state.heardSpeech}, level=$_heardLevel');
 
     if (state.heardSpeech) {
+      _instantEnds = 0;
       await _submit(event.generation, state.liveTranscript, emit);
-    } else if (instant) {
-      // The recogniser refused the session rather than timing out —
-      // almost always because it has no model for this language.
-      // Restarting just loops into error_busy.
+    } else if (instant && ++_instantEnds < _maxInstantEnds) {
+      // Probably the recogniser still switching language or releasing
+      // the previous session. Give it a moment and try again quietly.
       AppLogger.info(_tag,
-          'session for ${state.language.code} ended instantly; recogniser does not support it');
+          'session for ${state.language.code} ended instantly ($_instantEnds), retrying');
+      final gen = _generation;
+      await _speech.cancel();
+      await Future<void>.delayed(_instantRetryGap);
+      if (gen != _generation || isClosed) return;
+      await _startListening(emit);
+    } else if (instant) {
+      // Refused again: the recogniser has no model for this language.
+      // Restarting further just loops into error_busy.
+      AppLogger.info(_tag,
+          'session for ${state.language.code} ended instantly $_instantEnds times; recogniser does not support it');
+      _instantEnds = 0;
       _silentRestarts = 0;
       await _speech.cancel();
       emit(state.copyWith(
@@ -537,6 +556,7 @@ class VoiceAssistantBloc
         error: _recogniserMissingMessage(state.language),
       ));
     } else {
+      _instantEnds = 0;
       // Nothing said before the session closed. Keep the conversation
       // open a little longer, then rest.
       await _restartAfterSilenceOrIdle(emit);
@@ -698,6 +718,7 @@ class VoiceAssistantBloc
       case VoicePhase.error:
         _retriedListen = false;
         _silentRestarts = 0;
+        _instantEnds = 0;
         await _startListening(emit);
         break;
       case VoicePhase.listening:
@@ -734,6 +755,15 @@ class VoiceAssistantBloc
     // sentence would come out wrong. Start that utterance over. Also
     // resume when the previous language was the reason we were stopped.
     if (wasListening || wasBlocked) {
+      _instantEnds = 0;
+      _silentRestarts = 0;
+      // Close the old-language session and let the recogniser settle
+      // before opening one in the new language; starting straight away
+      // makes it close the new session instantly.
+      final gen = ++_generation;
+      await _speech.cancel();
+      await Future<void>.delayed(_instantRetryGap);
+      if (gen != _generation || isClosed) return;
       await _startListening(emit);
     }
   }
