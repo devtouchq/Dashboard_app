@@ -318,10 +318,15 @@ class VoiceAssistantBloc
       '${lang.name} speech recognition is not available on this device. '
       'Choose another language.';
 
-  String _recogniserMissingMessage(VoiceLanguage lang) =>
-      "This phone's voice input can't listen in ${lang.name}. "
-      'Set Google as the voice input app and download ${lang.name} '
-      '(Google app → Settings → Voice), or choose another language.';
+  String _recogniserMissingMessage(VoiceLanguage lang) => Platform.isIOS
+      // iOS has no voice-input app to switch to. On the Simulator every
+      // language ends like this, since it has no working recogniser.
+      ? "Voice input couldn't listen in ${lang.name} on this device. "
+          'The iOS Simulator does not support speech recognition. Try a '
+          'real iPhone, or choose another language.'
+      : "This phone's voice input can't listen in ${lang.name}. "
+          'Set Google as the voice input app and download ${lang.name} '
+          '(Google app → Settings → Voice), or choose another language.';
 
   VoiceAssistantBloc(this._repository, this._speech, this._storage)
       : super(VoiceAssistantState(
